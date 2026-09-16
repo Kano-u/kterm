@@ -13,6 +13,7 @@
   <header class="topbar">
     <nav id="breadcrumb" class="breadcrumb" aria-label="路径"></nav>
     <button id="toggle-hidden" class="icon-btn" title="显示/隐藏隐藏文件">👁</button>
+    <button id="btn-menu" class="icon-btn" title="更多操作" aria-haspopup="menu">⋯</button>
   </header>
   <div class="navbtns">
     <button id="nav-back" class="icon-btn" title="后退">‹</button>
@@ -21,6 +22,38 @@
   <div class="sortbar" id="sortbar" role="toolbar" aria-label="排序"></div>
   <main id="list" class="list"></main>
   <div id="toast" class="toast" hidden></div>
+  <div id="loading" class="loading-overlay" hidden><div class="spinner"></div></div>
+  <div id="menu" class="menu" hidden>
+    <button id="menu-new">✏️ 新建</button>
+    <button id="menu-trash" disabled>🗑 回收站</button>
+  </div>
+  <div id="dialog-backdrop" class="dialog-backdrop" hidden>
+    <div class="dialog" role="dialog" aria-modal="true">
+      <div id="dialog-title" class="dialog-title"></div>
+      <input id="dialog-input" type="text" autocomplete="off" spellcheck="false">
+      <div class="dialog-btns">
+        <div class="btn-group">
+          <button id="dialog-cancel" class="dlg-btn">取消</button>
+          <button id="dialog-dot" class="dlg-btn dot-btn" title="插入点号">.</button>
+        </div>
+        <div class="btn-group">
+          <button id="dialog-ok" class="dlg-btn primary">确定</button>
+          <button id="dialog-file" class="dlg-btn primary">文件</button>
+          <button id="dialog-dir" class="dlg-btn primary">文件夹</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="panel-backdrop" class="dialog-backdrop" hidden>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div id="sheet-title" class="sheet-title"></div>
+      <div id="sheet-detail" class="sheet-detail"></div>
+      <div class="dialog-btns">
+        <button id="sheet-cancel" class="dlg-btn">关闭</button>
+        <button id="sheet-rename" class="dlg-btn primary">重命名</button>
+      </div>
+    </div>
+  </div>
   <script src="/assets/app.js"></script>
 </body>
 </html>

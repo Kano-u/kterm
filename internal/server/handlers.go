@@ -56,3 +56,58 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"path": rel, "entries": entries})
 }
+
+type pathNameReq struct {
+	Path string `json:"path"`
+	Name string `json:"name"`
+}
+
+type renameReq struct {
+	Path    string `json:"path"`
+	OldName string `json:"oldName"`
+	NewName string `json:"newName"`
+}
+
+func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		writeErr(w, http.StatusBadRequest, "请求格式错误")
+		return false
+	}
+	return true
+}
+
+func handleMkdir(w http.ResponseWriter, r *http.Request) {
+	var req pathNameReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if err := root.Mkdir(req.Path, req.Name); err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+func handleCreate(w http.ResponseWriter, r *http.Request) {
+	var req pathNameReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if err := root.Create(req.Path, req.Name); err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+func handleRename(w http.ResponseWriter, r *http.Request) {
+	var req renameReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	if err := root.Rename(req.Path, req.OldName, req.NewName); err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}

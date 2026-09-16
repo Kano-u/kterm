@@ -18,6 +18,9 @@ func New(port int) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/list", handleList)
+	mux.HandleFunc("POST /api/mkdir", handleMkdir)
+	mux.HandleFunc("POST /api/create", handleCreate)
+	mux.HandleFunc("POST /api/rename", handleRename)
 
 	// 静态资源
 	sub, _ := fs.Sub(webFS, "web")

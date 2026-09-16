@@ -94,6 +94,200 @@ async function apiList(path) {
   return data;
 }
 
+/* 写操作：同步请求 + loading 遮罩 */
+async function apiOp(url, body) {
+  showLoading(true);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '操作失败');
+    return data;
+  } finally {
+    showLoading(false);
+  }
+}
+
+let loadingCount = 0;
+function showLoading(on) {
+  loadingCount += on ? 1 : -1;
+  if (loadingCount < 0) loadingCount = 0;
+  document.getElementById('loading').hidden = loadingCount === 0;
+}
+
+/* ---------- 通用输入对话框（M3） ---------- */
+
+const $dialogBackdrop = document.getElementById('dialog-backdrop');
+const $dialogInput = document.getElementById('dialog-input');
+const $dialogTitle = document.getElementById('dialog-title');
+const $dialogFileBtn = document.getElementById('dialog-file');
+const $dialogDirBtn = document.getElementById('dialog-dir');
+
+let dialogResolve = null;
+
+/**
+ * 打开输入对话框，返回 Promise<string|null>；取消时 resolve(null)。
+ * opts: { title, value, selectBase, mode: 'text'|'new' }
+ * mode='new' 时显示「文件/文件夹」创建按钮，resolve('file'|'dir')
+ */
+function promptDialog(opts) {
+  $dialogTitle.textContent = opts.title || '请输入';
+  $dialogInput.value = opts.value || '';
+  const isNew = opts.mode === 'new';
+  document.getElementById('dialog-ok').hidden = isNew;
+  $dialogFileBtn.hidden = !isNew;
+  $dialogDirBtn.hidden = !isNew;
+  $dialogBackdrop.hidden = false;
+  $dialogInput.focus();
+  // 选中主名（不含扩展名），方便改名
+  if (opts.selectBase) {
+    const v = $dialogInput.value;
+    const dot = v.lastIndexOf('.');
+    $dialogInput.setSelectionRange(0, dot > 0 ? dot : v.length);
+  }
+  return new Promise((resolve) => { dialogResolve = resolve; });
+}
+
+function closeDialog(value) {
+  $dialogBackdrop.hidden = true;
+  if (dialogResolve) { dialogResolve(value); dialogResolve = null; }
+}
+
+function inputName() {
+  const v = $dialogInput.value.trim();
+  if (!v) { toast('名称不能为空'); return null; }
+  return v;
+}
+
+document.getElementById('dialog-ok').addEventListener('click', () => {
+  const v = inputName();
+  if (v !== null) closeDialog(v);
+});
+$dialogFileBtn.addEventListener('click', () => {
+  const v = inputName();
+  if (v !== null) closeDialog({ name: v, kind: 'file' });
+});
+$dialogDirBtn.addEventListener('click', () => {
+  const v = inputName();
+  if (v !== null) closeDialog({ name: v, kind: 'dir' });
+});
+document.getElementById('dialog-cancel').addEventListener('click', () => closeDialog(null));
+document.getElementById('dialog-dot').addEventListener('click', () => {
+  // 在光标处插入 "." 并保持焦点
+  const start = $dialogInput.selectionStart ?? $dialogInput.value.length;
+  const end = $dialogInput.selectionEnd ?? start;
+  $dialogInput.value = $dialogInput.value.slice(0, start) + '.' + $dialogInput.value.slice(end);
+  const pos = start + 1;
+  $dialogInput.setSelectionRange(pos, pos);
+  $dialogInput.focus();
+});
+$dialogInput.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter') {
+    // 新建模式下 Enter 默认创建文件夹
+    if (!$dialogDirBtn.hidden) $dialogDirBtn.click();
+    else document.getElementById('dialog-ok').click();
+  }
+  if (ev.key === 'Escape') closeDialog(null);
+});
+$dialogBackdrop.addEventListener('click', (ev) => { if (ev.target === $dialogBackdrop) closeDialog(null); });
+
+/* ---------- 底部操作面板（M3） ---------- */
+
+const $panelBackdrop = document.getElementById('panel-backdrop');
+let panelEntry = null;
+
+function showPanel(entry) {
+  panelEntry = entry;
+  document.getElementById('sheet-title').textContent = entry.name;
+  document.getElementById('sheet-detail').textContent =
+    (entry.isDir ? '文件夹' : '文件') + '\n大小：' + fmtSize(entry.size) + '\n修改时间：' + fmtTime(entry.mtime);
+  $panelBackdrop.hidden = false;
+}
+
+function hidePanel() {
+  $panelBackdrop.hidden = true;
+  panelEntry = null;
+}
+
+document.getElementById('sheet-cancel').addEventListener('click', hidePanel);
+$panelBackdrop.addEventListener('click', (ev) => { if (ev.target === $panelBackdrop) hidePanel(); });
+document.getElementById('sheet-rename').addEventListener('click', () => {
+  if (!panelEntry) return;
+  const entry = panelEntry;
+  hidePanel();
+  renameEntry(entry);
+});
+
+async function renameEntry(entry) {
+  const newName = await promptDialog({
+    title: '重命名',
+    value: entry.name,
+    okText: '重命名',
+    selectBase: true,
+  });
+  if (newName === null || newName === entry.name) return;
+  const tab = activeTab();
+  try {
+    await apiOp('/api/rename', { path: tab.path, oldName: entry.name, newName });
+    toast('已重命名为 ' + newName);
+    await refreshActive();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/* 刷新当前 tab 的列表（写操作成功后调用） */
+async function refreshActive() {
+  const tab = activeTab();
+  try {
+    const data = await apiList(tab.path);
+    tab.path = data.path || '';
+    tab.cache = { path: tab.path, entries: data.entries || [] };
+    saveState();
+    renderAll();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/* ---------- ⋯ 菜单（M3） ---------- */
+
+const $menu = document.getElementById('menu');
+document.getElementById('btn-menu').addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  $menu.hidden = !$menu.hidden;
+});
+document.addEventListener('click', (ev) => {
+  if (!$menu.hidden && !$menu.contains(ev.target)) $menu.hidden = true;
+});
+
+document.getElementById('menu-new').addEventListener('click', async () => {
+  $menu.hidden = true;
+  const result = await promptDialog({ title: '新建', mode: 'new' });
+  if (result === null) return;
+  const tab = activeTab();
+  try {
+    if (result.kind === 'dir') {
+      await apiOp('/api/mkdir', { path: tab.path, name: result.name });
+      toast('已创建文件夹 ' + result.name);
+    } else {
+      await apiOp('/api/create', { path: tab.path, name: result.name });
+      toast('已创建文件 ' + result.name);
+    }
+    await refreshActive();
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
+document.getElementById('menu-trash').addEventListener('click', () => {
+  $menu.hidden = true;
+  toast('回收站功能将在后续版本提供');
+});
+
 /* ---------- 工具 ---------- */
 
 const $list = document.getElementById('list');
@@ -318,7 +512,7 @@ function renderList() {
     row.addEventListener('click', () => {
       const child = tab.path ? tab.path + '/' + e.name : e.name;
       if (e.isDir) navigate(child);
-      else toast('文件：' + e.name + '（' + fmtSize(e.size) + '，' + fmtTime(e.mtime) + '）');
+      else showPanel(e);
     });
     $list.appendChild(row);
   }
