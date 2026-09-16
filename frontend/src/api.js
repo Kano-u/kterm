@@ -31,3 +31,13 @@ export async function apiGet(url) {
   if (!res.ok) throw new Error(data.error || '请求失败')
   return data
 }
+
+/* 搜索：支持 AbortController 取消上一次请求 */
+export async function apiSearch(path, q, signal) {
+  const res = await fetch(`/api/search?path=${encodeURIComponent(path)}&q=${encodeURIComponent(q)}`, {
+    signal,
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || '搜索失败')
+  return data
+}

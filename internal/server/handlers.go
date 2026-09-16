@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -55,6 +56,19 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]any{"path": rel, "entries": entries})
+}
+
+func handleSearch(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	q := r.URL.Query().Get("q")
+	ctx, cancel := context.WithTimeout(r.Context(), fs.SearchTimeout)
+	defer cancel()
+	res, err := root.Search(ctx, rel, q)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, res)
 }
 
 type pathNameReq struct {

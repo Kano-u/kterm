@@ -1,16 +1,19 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import Icon from './Icon.vue'
 import { state, activeTab } from '../store.js'
-import { navigate } from '../actions.js'
+import { navigate, startSearch, onSearchInput, endSearch } from '../actions.js'
 import { ask } from '../dialog.js'
 import { doCreate } from '../actions.js'
 import TrashPanel from './TrashPanel.vue'
 
 const menu = ref(false)
-const searchMode = ref(false)
-const query = ref('')
+const searchEl = ref(null)
 const trashOpen = ref(false)
+const searchQuery = computed({
+  get: () => state.search.query,
+  set: (v) => onSearchInput(v),
+})
 
 function closeMenu() {
   menu.value = false
@@ -52,23 +55,22 @@ function onTrash() {
   trashOpen.value = true
 }
 
-function startSearch() {
+function startSearchMode() {
   closeMenu()
-  searchMode.value = true
-  query.value = ''
-  // TODO(M6): 接入 /api/search 防抖搜索
+  startSearch()
+  // 等输入框渲染完成后聚焦
+  nextTick(() => searchEl.value && searchEl.value.focus())
 }
 
-function endSearch() {
-  searchMode.value = false
-  query.value = ''
+function cancelSearch() {
+  endSearch()
 }
 </script>
 
 <template>
   <header class="relative flex-none bg-surface">
     <div class="flex items-center gap-1 px-1 py-2">
-      <template v-if="!searchMode">
+      <template v-if="!state.search.active">
         <nav
           class="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap no-scrollbar"
           aria-label="路径"
@@ -90,35 +92,37 @@ function endSearch() {
       <template v-else>
         <span class="material-symbols-outlined mx-2 flex-none text-on-surface-variant">search</span>
         <input
-          v-model="query"
+          ref="searchEl"
+          v-model="searchQuery"
           type="search"
           placeholder="搜索当前目录（含子目录）…"
           class="h-12 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 dark:[&::-webkit-search-cancel-button]:hidden"
         >
         <button
           class="state-layer flex h-12 flex-none items-center rounded-full px-4 text-sm text-primary"
-          @click="endSearch"
+          @click="cancelSearch"
         >
           取消
         </button>
       </template>
-
-      <button
-        class="state-layer flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
-        :class="state.showHidden ? '!text-primary' : ''"
-        title="显示/隐藏隐藏文件"
-        @click="toggleHidden"
-      >
-        <Icon name="visibility" :filled="state.showHidden" />
-      </button>
-      <button
-        class="state-layer relative flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
-        title="更多操作"
-        aria-haspopup="menu"
-        @click.stop="menu = !menu"
-      >
-        <Icon name="more_vert" />
-      </button>
+      <template v-if="!state.search.active">
+        <button
+          class="state-layer flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
+          :class="state.showHidden ? '!text-primary' : ''"
+          title="显示/隐藏隐藏文件"
+          @click="toggleHidden"
+        >
+          <Icon name="visibility" :filled="state.showHidden" />
+        </button>
+        <button
+          class="state-layer relative flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
+          title="更多操作"
+          aria-haspopup="menu"
+          @click.stop="menu = !menu"
+        >
+          <Icon name="more_vert" />
+        </button>
+      </template>
     </div>
 
     <!-- ⋯ 菜单（M3 菜单容器） -->
@@ -143,7 +147,7 @@ function endSearch() {
       </button>
       <button
         class="state-layer flex w-full items-center gap-3 border-t border-outline-variant/40 px-4 py-3 text-left text-sm text-on-surface"
-        @click="startSearch"
+        @click="startSearchMode"
       >
         <Icon name="search" :size="20" />
         搜索

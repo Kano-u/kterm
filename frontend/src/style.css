@@ -156,3 +156,12 @@
 .m3-pop {
   animation: m3-pop 0.18s cubic-bezier(0.05, 0.7, 0.1, 1);
 }
+
+/* ---------- 搜索结果跳转高亮 ---------- */
+@keyframes row-flash {
+  0%, 60% { background-color: var(--color-secondary-container); }
+  100% { background-color: transparent; }
+}
+.row-flash {
+  animation: row-flash 1.6s ease-out;
+}

@@ -13,11 +13,12 @@ import (
 //go:embed all:web
 var webFS embed.FS
 
-// New 构造 HTTP handler。
-func New(port int) http.Handler {
+// New 构造 HTTP handler。allowLAN 时放行任意 Host（局域网设备访问）。
+func New(port int, allowLAN bool) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/list", handleList)
+	mux.HandleFunc("GET /api/search", handleSearch)
 	mux.HandleFunc("POST /api/mkdir", handleMkdir)
 	mux.HandleFunc("POST /api/create", handleCreate)
 	mux.HandleFunc("POST /api/rename", handleRename)
@@ -36,7 +37,7 @@ func New(port int) http.Handler {
 		serveAsset(w, r, sub, "index.html")
 	})
 
-	return hostCheck(port)(mux)
+	return hostCheck(port, allowLAN)(mux)
 }
 
 // neuterDirList 禁止目录列表。
@@ -60,8 +61,14 @@ func serveAsset(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string)
 	w.Write(data)
 }
 
-// hostCheck 中间件：仅允许 localhost / 127.0.0.1 / [::1]:port。
-func hostCheck(port int) func(http.Handler) http.Handler {
+// hostCheck 中间件：默认仅允许 localhost / 127.0.0.1 / [::1]:port；
+// allowLAN 时放行所有来源（配合 -lan 监听所有网卡使用）。
+func hostCheck(port int, allowLAN bool) func(http.Handler) http.Handler {
+	if allowLAN {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
 	allowed := map[string]bool{
 		"localhost": true,
 		"127.0.0.1": true,

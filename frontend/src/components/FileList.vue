@@ -4,11 +4,11 @@ import EntrySheet from './EntrySheet.vue'
 import Icon from './Icon.vue'
 import { fileIcon } from '../icons.js'
 import {
-  state, activeTab, shownEntries, pruneSelection,
+  state, activeTab, shownEntries, shownSearchResults, pruneSelection,
   enterMultiSelect, exitMultiSelect, toggleSelect,
   fmtSize, fmtTime,
 } from '../store.js'
-import { navigate } from '../actions.js'
+import { navigate, gotoSearchHit } from '../actions.js'
 
 const listEl = ref(null)
 const sheetEntry = ref(null)
@@ -71,6 +71,17 @@ function onClickRow(e) {
     sheetEntry.value = e
   }
 }
+
+/* 搜索结果：点目录进入该目录；点文件跳到其父目录并高亮 */
+function onClickHit(hit) {
+  if (state.multi.active) return
+  gotoSearchHit(hit)
+}
+
+/* 搜索结果副标题：相对当前目录的路径 */
+function hitSub(hit) {
+  return hit.dir ? './' + hit.dir : '当前目录'
+}
 </script>
 
 <template>
@@ -84,6 +95,59 @@ function onClickRow(e) {
     @pointercancel="cancelPress"
     @scroll.passive="cancelPress"
   >
+    <!-- 搜索结果视图 -->
+    <template v-if="state.search.active">
+      <div
+        v-if="state.search.busy && shownSearchResults().length === 0"
+        class="fade-in flex flex-col items-center gap-3 px-4 py-16 text-on-surface-variant/70"
+      >
+        <Icon name="search" :size="48" />
+        <span class="text-sm">搜索中…</span>
+      </div>
+      <template v-else>
+        <div
+          v-if="state.search.truncated"
+          class="flex items-center gap-2 bg-tertiary-container/50 px-4 py-2 text-xs text-on-surface-variant"
+        >
+          <Icon name="info" :size="16" />
+          结果过多，仅显示前 500 条
+        </div>
+        <div
+          v-if="!state.search.query.trim()"
+          class="fade-in flex flex-col items-center gap-3 px-4 py-16 text-on-surface-variant/70"
+        >
+          <Icon name="search" :size="48" />
+          <span class="text-sm">输入关键字搜索当前目录及子目录</span>
+        </div>
+        <div
+          v-else-if="shownSearchResults().length === 0"
+          class="fade-in flex flex-col items-center gap-3 px-4 py-16 text-on-surface-variant/70"
+        >
+          <Icon name="folder_open" :size="48" />
+          <span class="text-sm">无匹配结果</span>
+        </div>
+        <div
+          v-for="hit in shownSearchResults()"
+          :key="hit.dir + '/' + hit.name"
+          class="state-layer flex min-h-16 cursor-pointer items-center gap-4 border-b border-outline-variant/25 px-4 select-none"
+          @click="onClickHit(hit)"
+        >
+          <span class="flex h-10 w-10 flex-none items-center justify-center text-primary">
+            <Icon :name="fileIcon(hit)" :size="26" :filled="!hit.isDir ? false : true" />
+          </span>
+          <span class="min-w-0 flex flex-1 flex-col justify-center">
+            <span class="truncate text-[15px]">{{ hit.name }}</span>
+            <span class="truncate text-xs text-on-surface-variant">{{ hitSub(hit) }}</span>
+          </span>
+          <span v-if="!hit.isDir" class="flex-none text-xs text-on-surface-variant">
+            {{ fmtSize(hit.size) }} · {{ fmtTime(hit.mtime) }}
+          </span>
+        </div>
+      </template>
+    </template>
+
+    <!-- 目录列表视图 -->
+    <template v-else>
     <div
       v-if="shown().length === 0"
       class="fade-in flex flex-col items-center gap-3 px-4 py-16 text-on-surface-variant/70"
@@ -127,5 +191,6 @@ function onClickRow(e) {
 
     <!-- 单击文件：底部详情/操作面板 -->
     <EntrySheet v-if="sheetEntry" :entry="sheetEntry" @close="sheetEntry = null" />
+    </template>
   </main>
 </template>

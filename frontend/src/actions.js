@@ -1,7 +1,7 @@
 import { toast } from './toast.js'
-import { apiList, apiOp } from './api.js'
+import { apiList, apiOp, apiSearch } from './api.js'
 import {
-  state, activeTab, saveState, newTab, exitMultiSelect,
+  state, activeTab, saveState, newTab, exitMultiSelect, resetSearch,
 } from './store.js'
 import { confirm } from './confirm.js'
 
@@ -240,6 +240,96 @@ export async function emptyTrash() {
     toast(err.message)
     return false
   }
+}
+
+/* ---------- 搜索 ---------- */
+
+let searchTimer = null
+let searchAbort = null
+
+/* 进入搜索模式：面包屑行切换为输入框 */
+export function startSearch() {
+  resetSearch()
+  state.search.active = true
+}
+
+/* 取消搜索：回到目录列表 */
+export function endSearch() {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
+  if (searchAbort) {
+    searchAbort.abort()
+    searchAbort = null
+  }
+  resetSearch()
+}
+
+/* 输入变化：300ms 防抖 + AbortController 取消上一次请求 */
+export function onSearchInput(q) {
+  state.search.query = q
+  if (searchTimer) clearTimeout(searchTimer)
+  if (!q.trim()) {
+    state.search.results = null
+    state.search.truncated = false
+    state.search.busy = false
+    return
+  }
+  state.search.busy = true
+  searchTimer = setTimeout(() => runSearch(), 300)
+}
+
+async function runSearch() {
+  searchTimer = null
+  const tab = activeTab()
+  const q = state.search.query
+  if (searchAbort) searchAbort.abort()
+  searchAbort = new AbortController()
+  const signal = searchAbort.signal
+  try {
+    const res = await apiSearch(tab.path, q, signal)
+    // 已发出更新的请求或已退出搜索模式时丢弃旧结果
+    if (!state.search.active || state.search.query !== q) return
+    state.search.results = res.hits || []
+    state.search.truncated = !!res.truncated
+  } catch (err) {
+    if (err.name === 'AbortError') return // 被新请求/取消替代
+    toast(err.message)
+    state.search.results = []
+    state.search.truncated = false
+  } finally {
+    if (searchAbort && searchAbort.signal === signal) {
+      searchAbort = null
+      if (state.search.query === q) state.search.busy = false
+    }
+  }
+}
+
+/* 点搜索结果：目录直接进入；文件跳到其父目录并短暂高亮该行 */
+export async function gotoSearchHit(hit) {
+  const tab = activeTab()
+  const target = hit.dir ? (tab.path ? tab.path + '/' + hit.dir : hit.dir) : tab.path
+  if (hit.isDir) {
+    const full = target ? (target + '/' + hit.name) : hit.name
+    endSearch()
+    await navigate(full)
+    return
+  }
+  endSearch()
+  await navigate(target)
+  // 高亮目标行（等待渲染完成）
+  setTimeout(() => {
+    const rows = document.querySelectorAll('[data-row]')
+    for (const el of rows) {
+      if (el.dataset.row === hit.name) {
+        el.classList.add('row-flash')
+        setTimeout(() => el.classList.remove('row-flash'), 1600)
+        el.scrollIntoView({ block: 'center' })
+        break
+      }
+    }
+  }, 80)
 }
 
 /* ---------- 多选 / 剪贴板 ---------- */

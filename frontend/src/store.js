@@ -22,6 +22,7 @@ export const state = reactive({
   showHidden: false,
   clipboard: null, // {mode:'copy'|'cut', srcPath, names[]}（不持久化）
   multi: { active: false, sel: new Set() }, // 多选（仅当前 tab，切换/导航时重置）
+  search: { active: false, query: '', results: null, truncated: false, busy: false }, // 搜索（不持久化）
   bootError: '',
 })
 
@@ -157,6 +158,26 @@ export function shownEntries() {
     entries.filter((e) => state.showHidden || !isHidden(e.name)),
     state.sort,
   )
+}
+
+/* ---------- 搜索 ---------- */
+
+/* 搜索模式（搜索结果页）的可见条目：结果同样按当前排序生效 */
+export function shownSearchResults() {
+  const s = state.search
+  if (!s.results) return []
+  return sortEntries(
+    s.results.filter((h) => state.showHidden || !isHidden(h.name)),
+    state.sort,
+  )
+}
+
+export function resetSearch() {
+  state.search.active = false
+  state.search.query = ''
+  state.search.results = null
+  state.search.truncated = false
+  state.search.busy = false
 }
 
 /* ---------- 多选 ---------- */
