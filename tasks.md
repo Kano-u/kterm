@@ -34,15 +34,15 @@
 
 **目标：标签可新建/关闭/切换并持久化；Android 返回手势 = 返回上级。**
 
-- [ ] T1.1 标签栏 UI：横向滚动、显示当前目录名、`[+]` 新建、`×` 关闭（至少保留一个标签）
-- [ ] T1.2 每 tab 数据结构 `{id, path, history[], histIdx, search:{active,query,results}}`；新建/关闭/切换逻辑；工具栏 `‹ ›` 前进/后退按钮
-- [ ] T1.3 `history.pushState({tabId, path})` + `popstate` 处理：返回手势恢复对应 tab 的上一路径
-- [ ] T1.4 localStorage 持久化（key `kfm-state`）：保存 `tabs/sort/showHidden`，启动时恢复（若恢复的路径已不存在则回退到 root）
-- [ ] T1.5 标签切换即时刷新列表，不重新请求已缓存路径（可选优化，至少保证正确性）
+- [x] T1.1 标签栏 UI：横向滚动、显示当前目录名、`[+]` 新建、`×` 关闭（至少保留一个标签）
+- [x] T1.2 每 tab 数据结构 `{id, path, history[], histIdx, search:{active,query,results}}`；新建/关闭/切换逻辑；工具栏 `‹ ›` 前进/后退按钮
+- [x] T1.3 `history.pushState({tabId, path})` + `popstate` 处理：返回手势恢复对应 tab 的上一路径
+- [x] T1.4 localStorage 持久化（key `kfm-state`）：保存 `tabs/sort/showHidden`，启动时恢复（若恢复的路径已不存在则回退到 root）
+- [x] T1.5 标签切换即时刷新列表，不重新请求已缓存路径（可选优化，至少保证正确性）
 
 ### 验收
-- [ ] 新建多个标签各自独立浏览；刷新页面后标签与位置恢复
-- [ ] Android 返回手势等价于返回上级目录
+- [x] 新建多个标签各自独立浏览；刷新页面后标签与位置恢复
+- [x] Android 返回手势等价于返回上级目录
 
 ---
 

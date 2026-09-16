@@ -89,6 +89,94 @@ body {
 
 .list { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 
+/* 标签栏 */
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tabbar::-webkit-scrollbar { display: none; }
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 40vw;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  cursor: pointer;
+  flex: none;
+}
+.tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.tab-close {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tab-close:active { background: rgba(127, 127, 127, 0.35); }
+.tab-add {
+  flex: none;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+/* 前进/后退按钮 */
+.navbtns {
+  position: fixed;
+  right: 12px;
+  bottom: calc(12px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 50;
+}
+.navbtns .icon-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.navbtns .icon-btn:disabled { opacity: 0.35; }
+
 .row {
   display: flex;
   align-items: center;

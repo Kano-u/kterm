@@ -9,10 +9,15 @@
   <link rel="stylesheet" href="/assets/style.css">
 </head>
 <body>
+  <nav id="tabbar" class="tabbar" aria-label="标签页"></nav>
   <header class="topbar">
     <nav id="breadcrumb" class="breadcrumb" aria-label="路径"></nav>
     <button id="toggle-hidden" class="icon-btn" title="显示/隐藏隐藏文件">👁</button>
   </header>
+  <div class="navbtns">
+    <button id="nav-back" class="icon-btn" title="后退">‹</button>
+    <button id="nav-fwd" class="icon-btn" title="前进">›</button>
+  </div>
   <main id="list" class="list"></main>
   <div id="toast" class="toast" hidden></div>
   <script src="/assets/app.js"></script>
