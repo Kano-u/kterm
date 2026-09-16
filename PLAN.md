@@ -1,7 +1,10 @@
 # kfm — Termux 移动端简易文件管理器（Web UI）开发计划
 
-> Go 单二进制 + 内嵌 Web 前端。在 Termux 中启动本地 HTTP 服务，手机浏览器访问。
-> 零第三方依赖（仅 Go 标准库 + 原生 JS），单文件部署，为触摸操作优化。
+> Go 后端 + Vue 3 / Tailwind CSS 前端（Vite 构建，产物 `go:embed` 内嵌）。
+> 在 Termux 中启动本地 HTTP 服务，手机浏览器访问；部署仍为单文件二进制，为触摸操作优化。
+>
+> **历史说明**：项目曾采用「Go 标准库 + 原生 JS」方案完成 M0–M4，后于 M4 后重构为 Vue 3 +
+> Tailwind（见 `frontend/`），后端 API 与 fs 层保持不变。
 
 ---
 
@@ -41,9 +44,9 @@
 |---|---|---|
 | 后端 | Go 标准库 `net/http` | Go 1.22+ 的 ServeMux 支持 `GET /api/list`、`/assets/{path...}` 路由，无需 chi/mux |
 | 目录复制 | 标准库 `os.CopyFS`（Go 1.23+） | 免去手写递归复制 |
-| 前端 | 原生 HTML/CSS/JS + `go:embed` | 代码量最少、无构建步骤、无 Node 依赖，Termux 里 `go build` 即完成全部构建；此规模下性能优于框架 |
-| 拼音排序 | 前端 `Intl.Collator('zh-Hans-CN', {numeric:true})` | 浏览器内置 ICU 支持，零依赖；排序在前端做还意味着切换排序无需请求、即时生效；Go 侧因此完全不需要 collation 库 → **整个项目零第三方依赖** |
-| 交叉编译 | `CGO_ENABLED=0` | 纯 Go，Windows 上可直接 `GOOS=linux GOARCH=arm64 go build` |
+| 前端 | Vue 3（`<script setup>` 组合式 API）+ Tailwind CSS v4 + Vite | 声明式渲染替代手写 DOM；Tailwind 原子类内联样式，无独立 CSS 文件；开发期 `vite dev` 热更新（API 代理至 8080），构建产物输出到 `internal/server/web/` 后 `go:embed` 内嵌，**部署形态不变：仍是单二进制** |
+| 拼音排序 | 前端 `Intl.Collator('zh-Hans-CN', {numeric:true})` | 浏览器内置 ICU 支持，零依赖；排序在前端做还意味着切换排序无需请求、即时生效；Go 侧因此完全不需要 collation 库 |
+| 交叉编译 | `CGO_ENABLED=0` | 纯 Go，Windows 上可直接 `GOOS=linux GOARCH=arm64 go build`（前端产物已内嵌，无需在打包机上装 Node） |
 
 ## 4. 总体架构
 
@@ -64,21 +67,35 @@
 ```
 kterm/
 ├── go.mod                  # module kfm, go 1.27
-├── main.go                 # flag 解析、启动服务、embed、自动开浏览器
+├── main.go                 # flag 解析、启动服务、自动开浏览器
 ├── internal/
 │   ├── fs/
 │   │   ├── root.go         # root 固化、路径解析与越界防护
 │   │   ├── list.go         # 目录列表
 │   │   ├── ops.go          # mkdir/create/rename/copy/move/delete
-│   │   ├── trash.go        # 回收站（移入/列出/恢复/清空）
-│   │   └── search.go       # 递归搜索（上限+超时）
+│   │   ├── clipboard.go    # copy/move 逐项执行 + 冲突自动改名
+│   │   └── errors.go       # 错误定义
 │   └── server/
 │       ├── server.go       # 路由、Host 校验中间件、静态资源
-│       └── handlers.go     # 各 JSON 端点
-├── web/                    # go:embed 打进二进制
+│       ├── handlers.go     # 各 JSON 端点
+│       └── web/            # 前端构建产物（go:embed，勿手改；由 `npm run build` 生成）
+│           ├── index.html
+│           └── assets/…
+├── frontend/               # Vue 3 + Tailwind + Vite 源码
 │   ├── index.html
-│   ├── app.js
-│   └── style.css
+│   ├── package.json
+│   ├── vite.config.js      # outDir 指向 ../internal/server/web，dev 时代理 /api
+│   └── src/
+│       ├── main.js
+│       ├── App.vue
+│       ├── store.js        # 单一 reactive 状态（tabs/sort/clipboard/multi）
+│       ├── api.js          # fetch 封装
+│       ├── actions.js      # 导航/标签/操作/剪贴板动作
+│       ├── dialog.js       # 全局命名对话框状态
+│       ├── toast.js / loading.js
+│       ├── style.css       # Tailwind 入口 + 少量全局样式
+│       └── components/     # Tabbar/Toolbar/Sortbar/FileList/SelectBar/PasteBar/
+│                           # NavBtns/Toast/Loading/NameDialog/EntrySheet
 ├── PLAN.md
 └── README.md               # M7 里程碑时编写
 ```
@@ -246,6 +263,9 @@ state = {
 ## 11. 构建与运行
 
 ```bash
+# 方式零：重新构建前端（仅改了 frontend/ 源码时需要；产物已提交在 internal/server/web）
+cd frontend && npm install && npm run build
+
 # 方式一：Termux 内直接构建（pkg install golang）
 go build . && ./kfm
 

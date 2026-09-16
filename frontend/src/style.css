@@ -1,0 +1,60 @@
+@import 'tailwindcss';
+
+/* Tailwind v4 基于 CSS 变量的暗色模式（class 切换由 useDark 管理的 <html class="dark">） */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 移动端基础 */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100
+      font-sans antialiased select-none;
+    touch-action: manipulation;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+}
+
+/* 无滚动条（标签栏/面包屑/排序栏横滑） */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 触摸反馈 */
+.press:active {
+  @apply bg-zinc-200/70 dark:bg-zinc-700/70;
+}
+
+/* 空状态淡入 */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* toast 滑入 */
+@keyframes toast-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.toast-anim {
+  animation: toast-up 0.18s ease-out;
+}
+
+/* 弹层淡入 */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.pop-in {
+  animation: pop-in 0.15s ease-out;
+}

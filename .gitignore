@@ -1,4 +1,6 @@
 app.exe
 kfm
 kfm.exe
+node_modules/
+dist/
 .pi/
