@@ -1,7 +1,6 @@
 <script setup>
 import { state, shownEntries, enterMultiSelect, exitMultiSelect, toggleSelect } from '../store.js'
-import { copySelection, cutSelection } from '../actions.js'
-import { toast } from '../toast.js'
+import { copySelection, cutSelection, confirmDelete } from '../actions.js'
 import Icon from './Icon.vue'
 
 function selectAll() {
@@ -14,8 +13,9 @@ function selectAll() {
   }
 }
 
-function onDelete() {
-  toast('删除功能将在后续版本提供')
+async function onDelete() {
+  if (state.multi.sel.size === 0) return
+  await confirmDelete([...state.multi.sel])
 }
 </script>
 

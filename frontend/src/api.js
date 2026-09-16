@@ -23,3 +23,11 @@ export async function apiOp(url, body) {
     showLoading(false)
   }
 }
+
+/* GET 请求（回收站列表等） */
+export async function apiGet(url) {
+  const res = await fetch(url)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || '请求失败')
+  return data
+}

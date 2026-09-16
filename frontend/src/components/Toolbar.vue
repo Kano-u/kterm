@@ -3,13 +3,14 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import Icon from './Icon.vue'
 import { state, activeTab } from '../store.js'
 import { navigate } from '../actions.js'
-import { toast } from '../toast.js'
 import { ask } from '../dialog.js'
 import { doCreate } from '../actions.js'
+import TrashPanel from './TrashPanel.vue'
 
 const menu = ref(false)
 const searchMode = ref(false)
 const query = ref('')
+const trashOpen = ref(false)
 
 function closeMenu() {
   menu.value = false
@@ -48,7 +49,7 @@ async function onNew() {
 
 function onTrash() {
   closeMenu()
-  toast('回收站功能将在后续版本提供')
+  trashOpen.value = true
 }
 
 function startSearch() {
@@ -134,8 +135,7 @@ function endSearch() {
         新建
       </button>
       <button
-        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface/40"
-        disabled
+        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface"
         @click="onTrash"
       >
         <Icon name="delete" :size="20" />
@@ -149,5 +149,8 @@ function endSearch() {
         搜索
       </button>
     </div>
+
+    <!-- 回收站面板 -->
+    <TrashPanel v-if="trashOpen" @close="trashOpen = false" />
   </header>
 </template>

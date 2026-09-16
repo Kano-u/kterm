@@ -105,20 +105,20 @@
 **目标：删 → 回收站 → 恢复全流程可用。**
 
 ### 后端
-- [ ] T5.1 `internal/fs/trash.go`：
+- [x] T5.1 `internal/fs/trash.go`：
   - 移入：`<root>/.kfm-trash/<unixnano-hex>/`，`meta.json` 记 `{path, time, names[]}`，条目按原名移入批次目录
   - 列出：遍历一层批次读 meta.json
   - 恢复：原目录不存在则重建 → 逐项 rename 回去（冲突自动改名）
   - 清空/彻底删除：`RemoveAll`
-- [ ] T5.2 handlers：`POST /api/delete`（`mode:"trash"|"permanent"`）、`GET /api/trash`、`POST /api/trash/restore`（`{ids[]}`）、`POST /api/trash/purge`（`{ids[]}` 或 `{all:true}`）
+- [x] T5.2 handlers：`POST /api/delete`（`mode:"trash"|"permanent"`）、`GET /api/trash`、`POST /api/trash/restore`（`{ids[]}`）、`POST /api/trash/purge`（`{ids[]}` 或 `{all:true}`）
 
 ### 前端
-- [ ] T5.3 删除确认框：主按钮「移入回收站」+ 红色破坏性按钮「永久删除」
-- [ ] T5.4 接通多选底栏「删除」与单文件操作面板「删除」
-- [ ] T5.5 回收站面板（`⋯` 菜单进入）：列出 `{time, path, names[]}`，支持恢复（整批）、彻底删除（整批）、清空全部；操作后 toast + 刷新
+- [x] T5.3 删除确认框：主按钮「移入回收站」+ 红色破坏性按钮「永久删除」
+- [x] T5.4 接通多选底栏「删除」与单文件操作面板「删除」
+- [x] T5.5 回收站面板（`⋯` 菜单进入）：列出 `{time, path, names[]}`，支持恢复（整批）、彻底删除（整批）、清空全部；操作后 toast + 刷新
 
 ### 验收
-- [ ] 删除 → 回收站面板可见 → 恢复到原位置（原目录被删也能恢复）；永久删除、清空可用；列表永远不出现 `.kfm-trash`
+- [x] 删除 → 回收站面板可见 → 恢复到原位置（原目录被删也能恢复）；永久删除、清空可用；列表永远不出现 `.kfm-trash`
 
 ---
 

@@ -23,6 +23,10 @@ func New(port int) http.Handler {
 	mux.HandleFunc("POST /api/rename", handleRename)
 	mux.HandleFunc("POST /api/copy", handleCopy)
 	mux.HandleFunc("POST /api/move", handleMove)
+	mux.HandleFunc("POST /api/delete", handleDelete)
+	mux.HandleFunc("GET /api/trash", handleTrashList)
+	mux.HandleFunc("POST /api/trash/restore", handleTrashRestore)
+	mux.HandleFunc("POST /api/trash/purge", handleTrashPurge)
 
 	// 静态资源
 	sub, _ := fs.Sub(webFS, "web")

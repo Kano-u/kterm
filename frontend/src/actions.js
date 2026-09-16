@@ -3,6 +3,7 @@ import { apiList, apiOp } from './api.js'
 import {
   state, activeTab, saveState, newTab, exitMultiSelect,
 } from './store.js'
+import { confirm } from './confirm.js'
 
 /* 进入新目录：更新 tab 栈 + pushState（Android 返回手势 = 返回上级） */
 export async function navigate(path) {
@@ -159,6 +160,81 @@ export async function doRename(entry, newName) {
     await apiOp('/api/rename', { path: tab.path, oldName: entry.name, newName })
     toast('已重命名为 ' + newName, 'ok')
     await refreshActive()
+    return true
+  } catch (err) {
+    toast(err.message)
+    return false
+  }
+}
+
+/* ---------- 删除 / 回收站 ---------- */
+
+/**
+ * 删除确认框：主按钮移入回收站，红色破坏性按钮永久删除。
+ * 返回 true 表示执行了任一删除（调用方刷新列表）。
+ */
+export async function confirmDelete(names) {
+  const n = names.length
+  const label = n === 1 ? `“${names[0]}”` : `${n} 项`
+  const choice = await confirm({
+    title: '删除',
+    message: `确定删除 ${label} 吗？\n移入回收站后可随时恢复。`,
+    okText: '移入回收站',
+    dangerText: '永久删除',
+  })
+  if (choice === false) return false
+  const mode = choice === 'danger' ? 'permanent' : 'trash'
+  const tab = activeTab()
+  try {
+    const report = await apiOp('/api/delete', { path: tab.path, names, mode })
+    if (report.failed === 0) {
+      toast(mode === 'permanent' ? `已永久删除 ${report.success} 项` : `已移入回收站 ${report.success} 项`, 'ok')
+    } else {
+      const firstFail = report.results.find((r) => !r.ok)
+      toast(`成功 ${report.success} 项，失败 ${report.failed} 项：` + (firstFail ? firstFail.error : ''))
+    }
+    exitMultiSelect()
+    await refreshActive()
+    return true
+  } catch (err) {
+    toast(err.message)
+    return false
+  }
+}
+
+/* ---------- 回收站面板动作（由 TrashPanel.vue 调用） ---------- */
+
+export async function restoreBatch(id) {
+  try {
+    const report = await apiOp('/api/trash/restore', { ids: [id] })
+    if (report.failed === 0) {
+      toast('已恢复到原位置', 'ok')
+    } else {
+      const firstFail = report.results.find((r) => !r.ok)
+      toast(`部分恢复失败：` + (firstFail ? firstFail.error : ''))
+    }
+    return true
+  } catch (err) {
+    toast(err.message)
+    return false
+  }
+}
+
+export async function purgeBatch(id) {
+  try {
+    await apiOp('/api/trash/purge', { ids: [id] })
+    toast('已彻底删除', 'ok')
+    return true
+  } catch (err) {
+    toast(err.message)
+    return false
+  }
+}
+
+export async function emptyTrash() {
+  try {
+    await apiOp('/api/trash/purge', { all: true })
+    toast('回收站已清空', 'ok')
     return true
   } catch (err) {
     toast(err.message)

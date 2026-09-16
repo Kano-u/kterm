@@ -144,3 +144,74 @@ func handleMove(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, report)
 }
+
+// deleteReq 删除请求体：{path, names[], mode}
+type deleteReq struct {
+	Path  string   `json:"path"`
+	Names []string `json:"names"`
+	Mode  string   `json:"mode"` // "trash" | "permanent"
+}
+
+func handleDelete(w http.ResponseWriter, r *http.Request) {
+	var req deleteReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	permanent := req.Mode == "permanent"
+	if req.Mode != "trash" && !permanent {
+		writeErr(w, http.StatusBadRequest, "mode 必须为 trash 或 permanent")
+		return
+	}
+	report, err := root.DeleteItems(req.Path, req.Names, permanent)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, report)
+}
+
+func handleTrashList(w http.ResponseWriter, r *http.Request) {
+	items, err := root.ListTrash()
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"items": items})
+}
+
+// trashRestoreReq 恢复请求体：{ids[]}
+type trashRestoreReq struct {
+	IDs []string `json:"ids"`
+}
+
+func handleTrashRestore(w http.ResponseWriter, r *http.Request) {
+	var req trashRestoreReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	report, err := root.RestoreTrash(req.IDs)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, report)
+}
+
+// trashPurgeReq 彻底删除请求体：{ids[]} 或 {all:true}
+type trashPurgeReq struct {
+	IDs []string `json:"ids"`
+	All bool     `json:"all"`
+}
+
+func handleTrashPurge(w http.ResponseWriter, r *http.Request) {
+	var req trashPurgeReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	report, err := root.PurgeTrash(req.IDs, req.All)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, report)
+}

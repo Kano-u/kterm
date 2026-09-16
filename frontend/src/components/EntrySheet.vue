@@ -1,6 +1,6 @@
 <script setup>
 import { ask } from '../dialog.js'
-import { doRename } from '../actions.js'
+import { doRename, confirmDelete } from '../actions.js'
 import { fmtSize, fmtTime } from '../store.js'
 import Icon from './Icon.vue'
 import { fileIcon } from '../icons.js'
@@ -20,6 +20,12 @@ async function onRename() {
   })
   if (newName === null || newName === entry.name) return
   await doRename(entry, newName)
+}
+
+async function onDelete() {
+  const entry = props.entry
+  emit('close')
+  await confirmDelete([entry.name])
 }
 </script>
 
@@ -60,6 +66,13 @@ async function onRename() {
             @click="emit('close')"
           >
             关闭
+          </button>
+          <button
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-error"
+            @click="onDelete"
+          >
+            <Icon name="delete" :size="20" />
+            删除
           </button>
           <button
             class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary"

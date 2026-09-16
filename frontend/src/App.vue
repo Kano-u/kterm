@@ -10,6 +10,7 @@ import NavBtns from './components/NavBtns.vue'
 import Toast from './components/Toast.vue'
 import Loading from './components/Loading.vue'
 import NameDialog from './components/NameDialog.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import EntrySheet from './components/EntrySheet.vue'
 import { loadState, validateRestoredTabs, activeTab } from './store.js'
 import { apiList } from './api.js'
@@ -73,6 +74,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPop))
     <Toast />
     <Loading />
     <NameDialog />
+    <ConfirmDialog />
     <EntrySheet />
   </div>
 </template>
