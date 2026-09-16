@@ -140,6 +140,80 @@ function baseName(path) {
   return path ? (path.split('/').pop() || path) : '根目录';
 }
 
+/* ---------- 排序（M2） ---------- */
+
+/* collator 降级链：zh-Hans-CN（拼音）→ zh → 默认 locale */
+function makeCollator() {
+  const opts = { numeric: true, sensitivity: 'base' };
+  for (const loc of ['zh-Hans-CN', 'zh']) {
+    try {
+      if (Intl.Collator.supportedLocalesOf([loc]).length) {
+        return new Intl.Collator(loc, opts);
+      }
+    } catch (e) { /* 降级 */ }
+  }
+  try { return new Intl.Collator(opts); } catch (e) { /* ignore */ }
+  return { compare: (a, b) => (a < b ? -1 : a > b ? 1 : 0) };
+}
+const collator = makeCollator();
+
+const SORT_FIELDS = [
+  { key: 'name', label: '名称' },
+  { key: 'size', label: '大小' },
+  { key: 'mtime', label: '修改时间' },
+  { key: 'type', label: '类型' },
+];
+
+function extOf(name) {
+  const i = name.lastIndexOf('.');
+  return i <= 0 ? '' : name.slice(i + 1).toLowerCase(); // 隐藏文件 .xx 无扩展名
+}
+
+/* 各字段比较：a、b 为 {name,isDir,size,mtime}，比较前目录永远在前 */
+const comparators = {
+  name: (a, b) => collator.compare(a.name, b.name),
+  size: (a, b) => (a.isDir ? 0 : a.size) - (b.isDir ? 0 : b.size),
+  mtime: (a, b) => a.mtime - b.mtime,
+  type: (a, b) => {
+    const ea = a.isDir ? '' : extOf(a.name);
+    const eb = b.isDir ? '' : extOf(b.name);
+    if (ea === '' && eb !== '') return -1;   // 无扩展名排最前（目录已在外层处理）
+    if (eb === '' && ea !== '') return 1;
+    const c = collator.compare(ea, eb);
+    return c !== 0 ? c : collator.compare(a.name, b.name);
+  },
+};
+
+function sortEntries(entries, sort) {
+  const cmp = comparators[sort.field] || comparators.name;
+  return entries.slice().sort((a, b) => {
+    if (a.isDir !== b.isDir) return a.isDir ? -1 : 1; // 目录永远排前
+    const c = cmp(a, b);
+    return sort.asc ? c : -c;
+  });
+}
+
+function renderSortbar() {
+  const bar = document.getElementById('sortbar');
+  bar.textContent = '';
+  for (const f of SORT_FIELDS) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    const active = state.sort.field === f.key;
+    if (active) chip.classList.add('active');
+    chip.textContent = active ? f.label + (state.sort.asc ? ' ↑' : ' ↓') : f.label;
+    chip.setAttribute('aria-pressed', String(active));
+    chip.addEventListener('click', () => {
+      if (state.sort.field === f.key) state.sort.asc = !state.sort.asc;
+      else state.sort = { field: f.key, asc: true };
+      saveState();
+      renderSortbar();
+      renderList(); // 纯前端重排，零延迟
+    });
+    bar.appendChild(chip);
+  }
+}
+
 /* ---------- 渲染：标签栏 ---------- */
 
 function renderTabs() {
@@ -212,7 +286,10 @@ function renderList() {
   const tab = activeTab();
   $list.textContent = '';
   const entries = (tab.cache && tab.cache.path === tab.path) ? tab.cache.entries : [];
-  const shown = entries.filter((e) => state.showHidden || !isHidden(e.name));
+  const shown = sortEntries(
+    entries.filter((e) => state.showHidden || !isHidden(e.name)),
+    state.sort,
+  );
   if (shown.length === 0) {
     const d = document.createElement('div');
     d.className = 'empty';
@@ -235,7 +312,7 @@ function renderList() {
 
     const meta = document.createElement('span');
     meta.className = 'meta';
-    meta.textContent = e.isDir ? '' : fmtSize(e.size);
+    meta.textContent = e.isDir ? '' : fmtSize(e.size) + ' · ' + fmtTime(e.mtime);
 
     row.append(icon, name, meta);
     row.addEventListener('click', () => {
@@ -249,6 +326,7 @@ function renderList() {
 
 function renderAll() {
   renderTabs();
+  renderSortbar();
   renderBreadcrumb();
   renderList();
 }

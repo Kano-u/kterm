@@ -177,6 +177,38 @@ body {
 }
 .navbtns .icon-btn:disabled { opacity: 0.35; }
 
+/* 排序 chips */
+.sortbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.sortbar::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 13px;
+  min-height: 36px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+.chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .row {
   display: flex;
   align-items: center;
