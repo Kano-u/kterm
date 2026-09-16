@@ -1,9 +1,9 @@
 <script setup>
-import { state } from '../store.js'
-import { toast } from '../toast.js'
 import { ask } from '../dialog.js'
-import { doRename, pasteClipboard } from '../actions.js'
+import { doRename } from '../actions.js'
 import { fmtSize, fmtTime } from '../store.js'
+import Icon from './Icon.vue'
+import { fileIcon } from '../icons.js'
 
 const props = defineProps({
   entry: { type: Object, required: true },
@@ -26,32 +26,46 @@ async function onRename() {
 <template>
   <Teleport to="body">
     <div class="fixed inset-0 z-50 flex items-end justify-center bg-black/45" @click.self="emit('close')">
+      <!-- M3 bottom sheet -->
       <div
         role="dialog"
         aria-modal="true"
-        class="mb-[calc(env(safe-area-inset-bottom)+8px)] w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl dark:bg-zinc-900 pop-in"
+        class="m3-elevate mb-[calc(env(safe-area-inset-bottom)+8px)] w-full max-w-lg rounded-t-[28px] bg-surface-2 pb-3 pt-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
       >
-        <div class="mb-2 truncate text-base font-semibold">{{ entry.name }}</div>
-        <div class="mb-1 text-[13px] leading-7 text-zinc-500 dark:text-zinc-400">
-          {{ entry.isDir ? '文件夹' : '文件' }}
+        <!-- drag handle -->
+        <div class="mx-auto mb-3 h-1 w-8 rounded-full bg-on-surface-variant/40" />
+
+        <div class="flex items-center gap-3 px-6">
+          <span class="flex h-12 w-12 flex-none items-center justify-center text-primary">
+            <Icon :name="fileIcon(entry)" :size="30" :filled="entry.isDir" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-base text-on-surface">{{ entry.name }}</div>
+            <div class="text-[13px] text-on-surface-variant">{{ entry.isDir ? '文件夹' : '文件' }}</div>
+          </div>
         </div>
-        <div class="mb-1 text-[13px] leading-7 text-zinc-500 dark:text-zinc-400">
+
+        <div class="mt-3 flex items-center gap-3 px-6 py-1 text-[13px] text-on-surface-variant">
+          <Icon name="data_usage" :size="18" />
           大小：{{ entry.isDir ? '—' : fmtSize(entry.size) }}
         </div>
-        <div class="mb-4 text-[13px] leading-7 text-zinc-500 dark:text-zinc-400">
+        <div class="flex items-center gap-3 px-6 py-1 text-[13px] text-on-surface-variant">
+          <Icon name="schedule" :size="18" />
           修改时间：{{ fmtTime(entry.mtime) }}
         </div>
-        <div class="flex justify-end gap-2">
+
+        <div class="mt-4 flex justify-end gap-1 px-4">
           <button
-            class="h-11 rounded-xl bg-zinc-100 px-5 text-sm dark:bg-zinc-800 press"
+            class="state-layer flex h-12 flex-none items-center rounded-full px-5 text-sm font-medium text-primary"
             @click="emit('close')"
           >
             关闭
           </button>
           <button
-            class="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white press"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary"
             @click="onRename"
           >
+            <Icon name="edit" :size="20" />
             重命名
           </button>
         </div>

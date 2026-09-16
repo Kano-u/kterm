@@ -15,7 +15,7 @@ import { loadState, validateRestoredTabs, activeTab } from './store.js'
 import { apiList } from './api.js'
 import { onPopState, restorePath } from './actions.js'
 
-/* 深色模式：跟随系统 prefers-color-scheme（Tailwind v4 class 变体） */
+/* 深色模式：跟随系统 prefers-color-scheme */
 const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
 const applyDark = () => document.documentElement.classList.toggle('dark', darkMq.matches)
 applyDark()
@@ -24,7 +24,7 @@ onUnmounted(() => darkMq.removeEventListener('change', applyDark))
 
 function fatal(msg) {
   document.getElementById('app').innerHTML =
-    `<div style="padding:48px 24px;text-align:center;color:#71717a">加载失败: ${msg}</div>`
+    `<div style="padding:48px 24px;text-align:center;color:#49454f">加载失败: ${msg}</div>`
 }
 
 function onPop(ev) {
@@ -55,7 +55,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPop))
 </script>
 
 <template>
-  <div class="flex h-dvh flex-col overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+  <div class="flex h-dvh flex-col overflow-hidden bg-surface-1 text-on-surface">
     <Tabbar />
     <Toolbar />
     <Sortbar />
@@ -66,7 +66,7 @@ onUnmounted(() => window.removeEventListener('popstate', onPop))
     <SelectBar />
     <PasteBar />
 
-    <!-- 前进/后退浮动按钮 -->
+    <!-- 导航 FAB -->
     <NavBtns />
 
     <!-- 全局浮层 -->

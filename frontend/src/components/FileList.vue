@@ -1,10 +1,12 @@
 <script setup>
 import { ref, watch, nextTick, onUnmounted } from 'vue'
 import EntrySheet from './EntrySheet.vue'
+import Icon from './Icon.vue'
+import { fileIcon } from '../icons.js'
 import {
   state, activeTab, shownEntries, pruneSelection,
-  enterMultiSelect, exitMultiSelect, toggleSelect, iconFor,
-  fmtSize, fmtTime, saveState,
+  enterMultiSelect, exitMultiSelect, toggleSelect,
+  fmtSize, fmtTime,
 } from '../store.js'
 import { navigate } from '../actions.js'
 
@@ -84,39 +86,41 @@ function onClickRow(e) {
   >
     <div
       v-if="shown().length === 0"
-      class="fade-in px-4 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500"
+      class="fade-in flex flex-col items-center gap-3 px-4 py-16 text-on-surface-variant/70"
     >
-      空文件夹
+      <Icon name="folder_open" :size="48" />
+      <span class="text-sm">空文件夹</span>
     </div>
 
     <div
       v-for="e in shown()"
       :key="e.name"
       :data-row="e.name"
-      class="flex min-h-14 cursor-pointer items-center gap-3 border-b border-zinc-100 px-4 select-none dark:border-zinc-800/70 press"
+      class="ripple state-layer flex min-h-16 cursor-pointer items-center gap-4 border-b border-outline-variant/25 px-4 select-none transition-colors"
       :class="
         state.multi.active && state.multi.sel.has(e.name)
-          ? 'bg-indigo-600/10 dark:bg-indigo-400/15 shadow-[inset_3px_0_0_0_var(--color-indigo-600)]'
-          : 'bg-white dark:bg-zinc-900'
+          ? 'bg-secondary-container/60 dark:bg-secondary-container/40'
+          : 'bg-surface-1'
       "
       @click="onClickRow(e)"
     >
-      <!-- 多选圆圈 -->
+      <!-- 多选复选框（M3 checkbox 形态） -->
       <span
         v-if="state.multi.active"
-        class="flex h-6 w-6 flex-none items-center justify-center rounded-full border-2 text-[13px] leading-none"
+        class="material-symbols-outlined flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[2px] border-2"
         :class="
           state.multi.sel.has(e.name)
-            ? 'border-indigo-600 bg-indigo-600 text-white'
-            : 'border-zinc-400 text-transparent dark:border-zinc-500'
+            ? 'border-primary bg-primary text-on-primary'
+            : 'border-on-surface-variant text-transparent'
         "
-      >
-        ✓
-      </span>
+        style="font-size: 15px; font-variation-settings: 'FILL' 1"
+      >check</span>
 
-      <span class="w-7 flex-none text-center text-[22px]">{{ iconFor(e) }}</span>
-      <span class="min-w-0 flex-1 truncate">{{ e.name }}</span>
-      <span v-if="!e.isDir" class="flex-none text-xs text-zinc-400 dark:text-zinc-500">
+      <span class="flex h-10 w-10 flex-none items-center justify-center text-primary">
+        <Icon :name="fileIcon(e)" :size="26" :filled="!e.isDir ? false : true" />
+      </span>
+      <span class="min-w-0 flex-1 truncate text-[15px]">{{ e.name }}</span>
+      <span v-if="!e.isDir" class="flex-none text-xs text-on-surface-variant">
         {{ fmtSize(e.size) }} · {{ fmtTime(e.mtime) }}
       </span>
     </div>

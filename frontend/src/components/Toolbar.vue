@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import Icon from './Icon.vue'
 import { state, activeTab } from '../store.js'
 import { navigate } from '../actions.js'
 import { toast } from '../toast.js'
@@ -25,7 +26,7 @@ const tab = () => activeTab()
 function crumbList() {
   const parts = tab().path ? tab().path.split('/') : []
   let acc = ''
-  const out = [{ label: '🏠', path: '' }]
+  const out = [{ label: '根目录', path: '', icon: 'home' }]
   for (const p of parts) {
     acc = acc ? acc + '/' + p : p
     out.push({ label: p, path: acc })
@@ -64,75 +65,88 @@ function endSearch() {
 </script>
 
 <template>
-  <header class="flex-none border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-    <div class="flex items-center gap-1.5 px-3 py-2">
+  <header class="relative flex-none bg-surface">
+    <div class="flex items-center gap-1 px-1 py-2">
       <template v-if="!searchMode">
         <nav
           class="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap no-scrollbar"
           aria-label="路径"
         >
           <template v-for="(c, i) in crumbList()" :key="i">
-            <span v-if="i > 0" class="px-0.5 text-zinc-400 dark:text-zinc-600">›</span>
+            <span v-if="i > 0" class="material-symbols-outlined text-on-surface-variant" style="font-size: 18px">chevron_right</span>
             <button
-              class="rounded px-1 py-2.5 text-indigo-600 dark:text-indigo-400 press"
-              :class="i === crumbList().length - 1 ? '!font-semibold !text-zinc-900 dark:!text-zinc-100' : ''"
+              class="state-layer flex flex-none items-center gap-1.5 rounded-full px-3 py-2 text-sm text-on-surface-variant"
+              :class="i === crumbList().length - 1 ? '!font-medium !text-on-surface' : ''"
               :aria-current="i === crumbList().length - 1 ? 'page' : undefined"
               @click="navigate(c.path)"
             >
-              {{ c.label }}
+              <Icon v-if="c.icon" :name="c.icon" :size="18" :filled="i === 0" />
+              <span class="max-w-[24vw] truncate">{{ c.label }}</span>
             </button>
           </template>
         </nav>
       </template>
       <template v-else>
+        <span class="material-symbols-outlined mx-2 flex-none text-on-surface-variant">search</span>
         <input
           v-model="query"
           type="search"
           placeholder="搜索当前目录（含子目录）…"
-          class="h-11 min-w-0 flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 text-sm outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:[&::-webkit-search-cancel-button]:hidden"
+          class="h-12 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 dark:[&::-webkit-search-cancel-button]:hidden"
         >
-        <button class="h-11 flex-none px-3 text-sm text-zinc-500 press" @click="endSearch">取消</button>
+        <button
+          class="state-layer flex h-12 flex-none items-center rounded-full px-4 text-sm text-primary"
+          @click="endSearch"
+        >
+          取消
+        </button>
       </template>
 
       <button
-        class="h-11 w-11 flex-none rounded-lg text-lg press"
-        :class="state.showHidden ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-500 dark:text-zinc-400'"
+        class="state-layer flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
+        :class="state.showHidden ? '!text-primary' : ''"
         title="显示/隐藏隐藏文件"
         @click="toggleHidden"
       >
-        👁
+        <Icon name="visibility" :filled="state.showHidden" />
       </button>
       <button
-        class="relative h-11 w-11 flex-none rounded-lg text-lg text-zinc-600 dark:text-zinc-300 press"
+        class="state-layer relative flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
         title="更多操作"
         aria-haspopup="menu"
         @click.stop="menu = !menu"
       >
-        ⋯
+        <Icon name="more_vert" />
       </button>
     </div>
 
-    <!-- ⋯ 下拉菜单 -->
+    <!-- ⋯ 菜单（M3 菜单容器） -->
     <div
       v-if="menu"
-      class="absolute right-2 z-40 w-44 overflow-hidden rounded-xl border border-zinc-200 bg-white py-1 shadow-xl dark:border-zinc-700 dark:bg-zinc-800 pop-in"
-      style="top: calc(env(safe-area-inset-top) + 96px)"
+      class="absolute right-2 z-40 w-52 origin-top-right rounded-xl bg-surface-2 py-2 shadow-[0_3px_10px_rgba(0,0,0,0.2),0_6px_24px_rgba(0,0,0,0.12)] m3-pop dark:shadow-[0_3px_10px_rgba(0,0,0,0.5)]"
+      style="top: calc(env(safe-area-inset-top) + 60px + 40px)"
     >
-      <button class="block w-full px-4 text-left text-sm leading-12 press" @click="onNew">
-        ✏️ 新建
+      <button
+        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface"
+        @click="onNew"
+      >
+        <Icon name="add" :size="20" />
+        新建
       </button>
       <button
-        class="block w-full px-4 text-left text-sm leading-12 text-zinc-400 press disabled:opacity-50"
+        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface/40"
         disabled
         @click="onTrash"
       >
-        🗑 回收站
+        <Icon name="delete" :size="20" />
+        回收站
       </button>
       <button
-        class="block w-full border-t border-zinc-100 px-4 text-left text-sm leading-12 press dark:border-zinc-700"
+        class="state-layer flex w-full items-center gap-3 border-t border-outline-variant/40 px-4 py-3 text-left text-sm text-on-surface"
         @click="startSearch"
       >
-        🔍 搜索
+        <Icon name="search" :size="20" />
+        搜索
       </button>
     </div>
   </header>

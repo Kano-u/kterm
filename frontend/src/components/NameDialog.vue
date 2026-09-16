@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { dialogState, closeDialog } from '../dialog.js'
 import { toast } from '../toast.js'
+import Icon from './Icon.vue'
 
 const input = ref(null)
 
@@ -70,55 +71,56 @@ function onKeydown(ev) {
       class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-6"
       @click.self="closeDialog(null)"
     >
+      <!-- M3 对话框：28dp 圆角 -->
       <div
         role="dialog"
         aria-modal="true"
-        class="w-full max-w-md rounded-2xl bg-white p-5 pb-3 shadow-2xl dark:bg-zinc-900 pop-in"
+        class="m3-pop w-full max-w-md rounded-[28px] bg-surface-2 p-6 pb-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
       >
-        <div class="mb-3 truncate text-base font-semibold">{{ dialogState.title }}</div>
+        <div class="mb-4 truncate text-xl font-normal text-on-surface">{{ dialogState.title }}</div>
         <input
           ref="input"
           v-model="dialogState.value"
           type="text"
           autocomplete="off"
           spellcheck="false"
-          class="h-12 w-full rounded-xl border border-zinc-300 bg-zinc-50 px-3 outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800"
+          class="h-14 w-full rounded-xl bg-surface-3 px-4 text-[15px] text-on-surface caret-primary outline-none focus:ring-2 focus:ring-primary/60"
           @keydown="onKeydown"
         >
-        <div class="mt-3 flex items-center justify-between gap-2">
-          <div class="flex gap-2">
+        <div class="mt-5 flex items-center justify-between gap-2">
+          <button
+            class="state-layer flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant"
+            title="插入点号"
+            @click="insertDot"
+          >
+            <span class="text-lg font-bold">.</span>
+          </button>
+          <div class="flex gap-1">
             <button
-              class="h-11 rounded-xl bg-zinc-100 px-4 text-sm dark:bg-zinc-800 press"
+              class="state-layer flex h-11 flex-none items-center rounded-full px-4 text-sm font-medium text-primary"
               @click="closeDialog(null)"
             >
               取消
             </button>
-            <button
-              class="h-11 w-11 rounded-xl bg-zinc-100 text-lg font-bold dark:bg-zinc-800 press"
-              title="插入点号"
-              @click="insertDot"
-            >
-              .
-            </button>
-          </div>
-          <div class="flex gap-2">
             <template v-if="dialogState.mode === 'new'">
               <button
-                class="h-11 rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white press"
+                class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary"
                 @click="submitNew('file')"
               >
+                <Icon name="note_add" :size="20" />
                 文件
               </button>
               <button
-                class="h-11 rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white press"
+                class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary"
                 @click="submitNew('dir')"
               >
+                <Icon name="create_new_folder" :size="20" />
                 文件夹
               </button>
             </template>
             <button
               v-else
-              class="h-11 rounded-xl bg-indigo-600 px-4 text-sm font-medium text-white press"
+              class="state-layer flex h-11 flex-none items-center rounded-full px-4 text-sm font-medium text-primary"
               @click="submitText"
             >
               确定

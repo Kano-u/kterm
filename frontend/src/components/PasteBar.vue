@@ -1,26 +1,31 @@
 <script setup>
 import { state } from '../store.js'
 import { pasteClipboard, clearClipboard } from '../actions.js'
+import Icon from './Icon.vue'
 </script>
 
 <template>
   <div
     v-if="state.clipboard && !state.multi.active"
-    class="fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 border-t border-zinc-200 bg-white/95 px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] shadow-[0_-4px_16px_rgba(0,0,0,0.15)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/95"
+    class="m3-elevate fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 border-t border-outline-variant/40 bg-surface-3 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)]"
   >
-    <span class="min-w-0 flex-1 truncate text-sm font-semibold">
+    <span class="ml-2 flex h-11 w-11 flex-none items-center justify-center rounded-full bg-primary/10 text-primary">
+      <Icon :name="state.clipboard.mode === 'copy' ? 'content_copy' : 'content_cut'" />
+    </span>
+    <span class="min-w-0 flex-1 truncate text-sm font-medium text-on-surface">
       {{ state.clipboard.mode === 'copy' ? '已复制' : '已剪切' }} {{ state.clipboard.names.length }} 项
     </span>
     <button
-      class="h-11 flex-none rounded-xl bg-zinc-100 px-4 text-sm dark:bg-zinc-800 press"
+      class="state-layer flex h-11 flex-none items-center rounded-full px-4 text-sm text-on-surface-variant"
       @click="clearClipboard"
     >
       清空
     </button>
     <button
-      class="h-11 flex-none rounded-xl bg-indigo-600 px-5 text-sm font-medium text-white press"
+      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-medium text-on-primary"
       @click="pasteClipboard"
     >
+      <Icon name="content_paste" :size="20" />
       粘贴
     </button>
   </div>

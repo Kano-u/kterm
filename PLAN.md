@@ -1,10 +1,7 @@
 # kfm — Termux 移动端简易文件管理器（Web UI）开发计划
 
 > Go 后端 + Vue 3 / Tailwind CSS 前端（Vite 构建，产物 `go:embed` 内嵌）。
-> 在 Termux 中启动本地 HTTP 服务，手机浏览器访问；部署仍为单文件二进制，为触摸操作优化。
->
-> **历史说明**：项目曾采用「Go 标准库 + 原生 JS」方案完成 M0–M4，后于 M4 后重构为 Vue 3 +
-> Tailwind（见 `frontend/`），后端 API 与 fs 层保持不变。
+> 在 Termux 中启动本地 HTTP 服务，手机浏览器访问；部署为单文件二进制，为触摸操作优化。
 
 ---
 
@@ -53,7 +50,7 @@
 ```
 ┌─────────── Termux ───────────┐      ┌──── 手机浏览器 ────┐
 │  kfm (单二进制)               │      │  内嵌的静态页面      │
-│  ├─ net/http + JSON API      │◄────►│  原生 JS 单页应用    │
+│  ├─ net/http + JSON API      │◄────►│  Vue 3 单页应用      │
 │  ├─ internal/fs  路径安全/操作 │ HTTP │  排序/过滤/防抖在前端 │
 │  └─ internal/server handlers │localhost │              │
 │  web/ (go:embed 前端资源)     │      │                    │
