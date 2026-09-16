@@ -111,3 +111,36 @@ func handleRename(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"ok": true})
 }
+
+// clipReq copy/move 请求体：{srcPath, names[], destPath}
+type clipReq struct {
+	SrcPath  string   `json:"srcPath"`
+	Names    []string `json:"names"`
+	DestPath string   `json:"destPath"`
+}
+
+func handleCopy(w http.ResponseWriter, r *http.Request) {
+	var req clipReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	report, err := root.CopyItems(req.SrcPath, req.Names, req.DestPath)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, report)
+}
+
+func handleMove(w http.ResponseWriter, r *http.Request) {
+	var req clipReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	report, err := root.MoveItems(req.SrcPath, req.Names, req.DestPath)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, report)
+}

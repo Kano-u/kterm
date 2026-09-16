@@ -21,6 +21,8 @@ func New(port int) http.Handler {
 	mux.HandleFunc("POST /api/mkdir", handleMkdir)
 	mux.HandleFunc("POST /api/create", handleCreate)
 	mux.HandleFunc("POST /api/rename", handleRename)
+	mux.HandleFunc("POST /api/copy", handleCopy)
+	mux.HandleFunc("POST /api/move", handleMove)
 
 	// 静态资源
 	sub, _ := fs.Sub(webFS, "web")
@@ -57,13 +59,13 @@ func serveAsset(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string)
 // hostCheck 中间件：仅允许 localhost / 127.0.0.1 / [::1]:port。
 func hostCheck(port int) func(http.Handler) http.Handler {
 	allowed := map[string]bool{
-		"localhost":          true,
-		"127.0.0.1":          true,
-		"::1":                true,
-		"[::1]":              true,
-		net.JoinHostPort("localhost", strconv.Itoa(port)):  true,
-		net.JoinHostPort("127.0.0.1", strconv.Itoa(port)):  true,
-		net.JoinHostPort("::1", strconv.Itoa(port)):        true,
+		"localhost": true,
+		"127.0.0.1": true,
+		"::1":       true,
+		"[::1]":     true,
+		net.JoinHostPort("localhost", strconv.Itoa(port)): true,
+		net.JoinHostPort("127.0.0.1", strconv.Itoa(port)): true,
+		net.JoinHostPort("::1", strconv.Itoa(port)):       true,
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

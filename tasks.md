@@ -85,18 +85,18 @@
 **目标：跨标签复制粘贴一批文件成功，重名自动改名。**
 
 ### 后端
-- [ ] T4.1 实现冲突自动改名 `名字 (2).ext` 递增（copy/move 共用）
-- [ ] T4.2 copy：文件 `io.Copy`（保留 mode），目录 `os.CopyFS`；move：`os.Rename`，跨设备（EXDEV）降级 copy+delete；拒绝把目录移入自身子目录（包含性检查）
-- [ ] T4.3 handlers：`POST /api/copy`、`POST /api/move`（`{srcPath, names[], destPath}`），逐项执行并汇总结果
+- [x] T4.1 实现冲突自动改名 `名字 (2).ext` 递增（copy/move 共用）
+- [x] T4.2 copy：文件 `io.Copy`（保留 mode），目录 `os.CopyFS`；move：`os.Rename`，跨设备（EXDEV）降级 copy+delete；拒绝把目录移入自身子目录（包含性检查）
+- [x] T4.3 handlers：`POST /api/copy`、`POST /api/move`（`{srcPath, names[], destPath}`），逐项执行并汇总结果
 
 ### 前端
-- [ ] T4.4 长按条目进入多选模式（`user-select:none`、屏蔽 `contextmenu`）；多选中单击 = 切换选中；选中样式
-- [ ] T4.5 多选底栏：`已选 N 项 │ 全选 │ 复制 │ 移动 │ 删除 │ ✕`（删除本阶段可占位）
-- [ ] T4.6 剪贴板状态 `{mode:'copy'|'cut', srcPath, names[]}`；复制/移动后退出多选、底部出现粘贴栏 `已复制/剪切 N 项 [粘贴][清空]`；支持跨标签粘贴
-- [ ] T4.7 粘贴：调 copy/move API → toast 结果 → 刷新列表；移动后清空剪贴板，复制保留可重复粘贴
+- [x] T4.4 长按条目进入多选模式（`user-select:none`、屏蔽 `contextmenu`）；多选中单击 = 切换选中；选中样式
+- [x] T4.5 多选底栏：`已选 N 项 │ 全选 │ 复制 │ 移动 │ 删除 │ ✕`（删除本阶段可占位）
+- [x] T4.6 剪贴板状态 `{mode:'copy'|'cut', srcPath, names[]}`；复制/移动后退出多选、底部出现粘贴栏 `已复制/剪切 N 项 [粘贴][清空]`；支持跨标签粘贴
+- [x] T4.7 粘贴：调 copy/move API → toast 结果 → 刷新列表；移动后清空剪贴板，复制保留可重复粘贴
 
 ### 验收
-- [ ] 长按多选 → 复制 → 切到另一标签粘贴成功；目录整体复制成功；同名自动改名 `x (2).ext`；目录移入自身被拒绝
+- [x] 长按多选 → 复制 → 切到另一标签粘贴成功；目录整体复制成功；同名自动改名 `x (2).ext`；目录移入自身被拒绝
 
 ---
 

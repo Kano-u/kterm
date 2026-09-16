@@ -20,6 +20,8 @@ let state = {
   activeTabId: 1,
   sort: { field: 'name', asc: true },
   showHidden: false,
+  clipboard: null,  // {mode:'copy'|'cut', srcPath, names[]} 剪贴板（不持久化）
+  multi: { active: false, sel: new Set() }, // 多选模式（仅当前 tab 有效，切换/导航时重置）
 };
 
 function activeTab() {
@@ -253,6 +255,164 @@ async function refreshActive() {
   }
 }
 
+/* ---------- 多选与剪贴板（M4） ---------- */
+
+function exitMultiSelect() {
+  state.multi.active = false;
+  state.multi.sel.clear();
+  document.body.classList.remove('multi-select');
+  document.getElementById('selbar').hidden = true;
+  renderList();
+}
+
+function enterMultiSelect(firstName) {
+  state.multi.active = true;
+  state.multi.sel.clear();
+  if (firstName) state.multi.sel.add(firstName);
+  document.body.classList.add('multi-select');
+  document.getElementById('selbar').hidden = false;
+  renderList();
+}
+
+function toggleSelect(name) {
+  if (state.multi.sel.has(name)) state.multi.sel.delete(name);
+  else state.multi.sel.add(name);
+  if (state.multi.sel.size === 0) {
+    exitMultiSelect();
+    return;
+  }
+  renderSelbar();
+  renderList();
+}
+
+function renderSelbar() {
+  const bar = document.getElementById('selbar');
+  bar.hidden = !state.multi.active;
+  if (!state.multi.active) return;
+  document.getElementById('selbar-count').textContent = '已选 ' + state.multi.sel.size + ' 项';
+}
+
+function currentShownNames() {
+  const tab = activeTab();
+  const entries = (tab.cache && tab.cache.path === tab.path) ? tab.cache.entries : [];
+  return sortEntries(
+    entries.filter((e) => state.showHidden || !isHidden(e.name)),
+    state.sort,
+  ).map((e) => e.name);
+}
+
+function renderPastebar() {
+  const bar = document.getElementById('pastebar');
+  const label = document.getElementById('pastebar-label');
+  if (!state.multi.active) bar.hidden = true;
+  if (!state.clipboard || state.multi.active) return;
+  bar.hidden = false;
+  const n = state.clipboard.names.length;
+  label.textContent = (state.clipboard.mode === 'copy' ? '已复制 ' : '已剪切 ') + n + ' 项';
+}
+
+/* 长按条目进入多选 */
+let pressTimer = null;
+let pressMoved = false;
+
+$list.addEventListener('contextmenu', (ev) => ev.preventDefault());
+
+$list.addEventListener('pointerdown', (ev) => {
+  const row = ev.target.closest('.row');
+  if (!row || state.multi.active) return;
+  pressMoved = false;
+  const name = row.dataset.name;
+  pressTimer = setTimeout(() => {
+    pressTimer = null;
+    if (!pressMoved) {
+      if (navigator.vibrate) navigator.vibrate(30);
+      enterMultiSelect(name);
+    }
+  }, 500);
+});
+
+const cancelPress = () => {
+  pressMoved = true;
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+};
+$list.addEventListener('pointermove', cancelPress);
+$list.addEventListener('pointerup', () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } });
+$list.addEventListener('pointercancel', cancelPress);
+$list.addEventListener('scroll', cancelPress);
+
+/* 多选底栏按钮 */
+document.getElementById('sel-exit').addEventListener('click', exitMultiSelect);
+
+document.getElementById('sel-all').addEventListener('click', () => {
+  const names = currentShownNames();
+  const allIn = names.every((n) => state.multi.sel.has(n));
+  if (allIn) {
+    state.multi.sel.clear();
+    exitMultiSelect();
+  } else {
+    names.forEach((n) => state.multi.sel.add(n));
+    renderSelbar();
+    renderList();
+  }
+});
+
+document.getElementById('sel-copy').addEventListener('click', () => {
+  if (state.multi.sel.size === 0) return;
+  state.clipboard = { mode: 'copy', srcPath: activeTab().path, names: [...state.multi.sel] };
+  const n = state.clipboard.names.length;
+  exitMultiSelect();
+  renderPastebar();
+  toast('已复制 ' + n + ' 项，请到目标位置粘贴');
+});
+
+document.getElementById('sel-move').addEventListener('click', () => {
+  if (state.multi.sel.size === 0) return;
+  state.clipboard = { mode: 'cut', srcPath: activeTab().path, names: [...state.multi.sel] };
+  const n = state.clipboard.names.length;
+  exitMultiSelect();
+  renderPastebar();
+  toast('已剪切 ' + n + ' 项，请到目标位置粘贴');
+});
+
+document.getElementById('sel-delete').addEventListener('click', () => {
+  toast('删除功能将在后续版本提供');
+});
+
+/* 粘贴栏 */
+document.getElementById('paste-cancel').addEventListener('click', () => {
+  state.clipboard = null;
+  renderPastebar();
+  toast('已清空剪贴板');
+});
+
+document.getElementById('paste-do').addEventListener('click', async () => {
+  const clip = state.clipboard;
+  if (!clip) return;
+  const tab = activeTab();
+  const url = clip.mode === 'copy' ? '/api/copy' : '/api/move';
+  try {
+    const report = await apiOp(url, {
+      srcPath: clip.srcPath,
+      names: clip.names,
+      destPath: tab.path,
+    });
+    if (report.failed === 0) {
+      toast((clip.mode === 'copy' ? '已粘贴 ' : '已移动 ') + report.success + ' 项');
+    } else {
+      const firstFail = report.results.find((r) => !r.ok);
+      toast('成功 ' + report.success + ' 项，失败 ' + report.failed + ' 项：' + (firstFail ? firstFail.error : ''));
+    }
+    // 移动后清空剪贴板；复制保留可重复粘贴
+    if (clip.mode === 'cut') {
+      state.clipboard = null;
+      renderPastebar();
+    }
+    await refreshActive();
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
 /* ---------- ⋯ 菜单（M3） ---------- */
 
 const $menu = document.getElementById('menu');
@@ -484,6 +644,18 @@ function renderList() {
     entries.filter((e) => state.showHidden || !isHidden(e.name)),
     state.sort,
   );
+  // 多选状态下过滤掉已不存在的选中项（如粘贴/删除后）
+  if (state.multi.active) {
+    const names = new Set(shown.map((e) => e.name));
+    for (const n of [...state.multi.sel]) {
+      if (!names.has(n)) state.multi.sel.delete(n);
+    }
+    if (state.multi.sel.size === 0) {
+      exitMultiSelect();
+    } else {
+      renderSelbar();
+    }
+  }
   if (shown.length === 0) {
     const d = document.createElement('div');
     d.className = 'empty';
@@ -491,10 +663,18 @@ function renderList() {
     $list.appendChild(d);
     return;
   }
+  const multi = state.multi.active;
   for (const e of shown) {
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'row' + (multi && state.multi.sel.has(e.name) ? ' selected' : '');
     row.dataset.name = e.name;
+
+    if (multi) {
+      const check = document.createElement('span');
+      check.className = 'check';
+      check.textContent = '✓';
+      row.appendChild(check);
+    }
 
     const icon = document.createElement('span');
     icon.className = 'icon';
@@ -510,6 +690,10 @@ function renderList() {
 
     row.append(icon, name, meta);
     row.addEventListener('click', () => {
+      if (state.multi.active) {
+        toggleSelect(e.name);
+        return;
+      }
       const child = tab.path ? tab.path + '/' + e.name : e.name;
       if (e.isDir) navigate(child);
       else showPanel(e);
@@ -523,13 +707,16 @@ function renderAll() {
   renderSortbar();
   renderBreadcrumb();
   renderList();
+  renderSelbar();
+  renderPastebar();
 }
 
 /* ---------- 导航（含 history pushState / popstate） ---------- */
 
-/* 进入新目录：更新 tab 栈 + pushState */
+/* 进入新目录：更新 tab 栈 + pushState（退出多选） */
 async function navigate(path) {
   const tab = activeTab();
+  exitMultiSelect();
   try {
     const data = await apiList(path);
     tab.path = data.path || '';
@@ -551,6 +738,7 @@ async function navigate(path) {
 /* 沿 tab 自身历史前进/后退（工具栏 ‹ ›） */
 async function tabGo(delta) {
   const tab = activeTab();
+  exitMultiSelect();
   const idx = tab.histIdx + delta;
   if (idx < 0 || idx >= tab.history.length) return;
   const target = tab.history[idx];
@@ -579,6 +767,7 @@ window.addEventListener('popstate', (ev) => {
   if (idx >= 0) tab.histIdx = idx;
 
   state.activeTabId = tab.id;
+  exitMultiSelect();
   restorePath(tab, path);
 });
 
@@ -629,6 +818,7 @@ function switchTab(id) {
   if (id === state.activeTabId) return;
   const tab = state.tabs.find((t) => t.id === id);
   if (!tab) return;
+  exitMultiSelect();
   state.activeTabId = id;
   if (!tab.cache) {
     // 无缓存（如恢复后首次切换）才请求

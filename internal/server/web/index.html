@@ -21,6 +21,19 @@
   </div>
   <div class="sortbar" id="sortbar" role="toolbar" aria-label="排序"></div>
   <main id="list" class="list"></main>
+  <div id="pastebar" class="pastebar" hidden>
+    <span id="pastebar-label" class="pastebar-label"></span>
+    <button id="paste-cancel" class="dlg-btn">清空</button>
+    <button id="paste-do" class="dlg-btn primary">粘贴</button>
+  </div>
+  <div id="selbar" class="selbar" hidden>
+    <span id="selbar-count" class="selbar-count"></span>
+    <button id="sel-all" class="selbar-btn">全选</button>
+    <button id="sel-copy" class="selbar-btn">复制</button>
+    <button id="sel-move" class="selbar-btn">移动</button>
+    <button id="sel-delete" class="selbar-btn danger">删除</button>
+    <button id="sel-exit" class="selbar-btn">✕</button>
+  </div>
   <div id="toast" class="toast" hidden></div>
   <div id="loading" class="loading-overlay" hidden><div class="spinner"></div></div>
   <div id="menu" class="menu" hidden>
