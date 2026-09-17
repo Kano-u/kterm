@@ -129,14 +129,14 @@ function hitSub(hit) {
         <div
           v-for="hit in shownSearchResults()"
           :key="hit.dir + '/' + hit.name"
-          class="state-layer flex min-h-16 cursor-pointer items-center gap-4 border-b border-outline-variant/25 px-4 select-none"
+          class="state-layer flex min-h-13 cursor-pointer items-center gap-3.5 border-b border-outline-variant/25 px-3 select-none"
           @click="onClickHit(hit)"
         >
-          <span class="flex h-10 w-10 flex-none items-center justify-center text-primary">
-            <Icon :name="fileIcon(hit)" :size="26" :filled="!hit.isDir ? false : true" />
+          <span class="flex h-9 w-9 flex-none items-center justify-center text-primary">
+            <Icon :name="fileIcon(hit)" :size="24" :filled="!hit.isDir ? false : true" />
           </span>
           <span class="min-w-0 flex flex-1 flex-col justify-center">
-            <span class="truncate text-[15px]">{{ hit.name }}</span>
+            <span class="truncate text-sm">{{ hit.name }}</span>
             <span class="truncate text-xs text-on-surface-variant">{{ hitSub(hit) }}</span>
           </span>
           <span v-if="!hit.isDir" class="flex-none text-xs text-on-surface-variant">
@@ -160,7 +160,7 @@ function hitSub(hit) {
       v-for="e in shown()"
       :key="e.name"
       :data-row="e.name"
-      class="ripple state-layer flex min-h-16 cursor-pointer items-center gap-4 border-b border-outline-variant/25 px-4 select-none transition-colors"
+      class="ripple state-layer flex min-h-13 cursor-pointer items-center gap-3.5 border-b border-outline-variant/25 px-3 select-none transition-colors"
       :class="
         state.multi.active && state.multi.sel.has(e.name)
           ? 'bg-secondary-container/40'
@@ -180,10 +180,10 @@ function hitSub(hit) {
         style="font-size: 15px; font-variation-settings: 'FILL' 1"
       >check</span>
 
-      <span class="flex h-10 w-10 flex-none items-center justify-center text-primary">
-        <Icon :name="fileIcon(e)" :size="26" :filled="!e.isDir ? false : true" />
+      <span class="flex h-9 w-9 flex-none items-center justify-center text-primary">
+        <Icon :name="fileIcon(e)" :size="24" :filled="!e.isDir ? false : true" />
       </span>
-      <span class="min-w-0 flex-1 truncate text-[15px]">{{ e.name }}</span>
+      <span class="min-w-0 flex-1 truncate text-sm">{{ e.name }}</span>
       <span v-if="!e.isDir" class="flex-none text-xs text-on-surface-variant">
         {{ fmtSize(e.size) }} · {{ fmtTime(e.mtime) }}
       </span>

@@ -137,7 +137,7 @@ function cancelSearch() {
         <!-- 排序按钮：点开后弹出排序列表 -->
         <div class="relative flex-none">
           <button
-            class="state-layer flex h-12 w-12 items-center justify-center rounded-full text-on-surface-variant"
+            class="state-layer flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant"
             :class="sortMenu ? '!text-primary' : ''"
             :title="`排序：${sortLabel}（${state.sort.asc ? '升序' : '降序'}）`"
             aria-haspopup="menu"
@@ -180,7 +180,7 @@ function cancelSearch() {
 
         <!-- 搜索：直接进入搜索模式 -->
         <button
-          class="state-layer flex h-12 w-12 flex-none items-center justify-center rounded-full text-on-surface-variant"
+          class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
           title="搜索"
           @click="startSearchMode"
         >
@@ -196,10 +196,10 @@ function cancelSearch() {
           v-model="searchQuery"
           type="search"
           placeholder="搜索当前目录（含子目录）…"
-          class="h-12 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 [&::-webkit-search-cancel-button]:hidden"
+          class="h-10 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 [&::-webkit-search-cancel-button]:hidden"
         >
         <button
-          class="state-layer flex h-12 flex-none items-center rounded-full px-4 text-sm text-primary"
+          class="state-layer flex h-10 flex-none items-center rounded-full px-3 text-sm text-primary"
           @click="cancelSearch"
         >
           取消
@@ -209,7 +209,7 @@ function cancelSearch() {
       <!-- ⋯ 更多操作（搜索模式下隐藏） -->
       <div v-if="!state.search.active" class="relative flex-none">
         <button
-          class="state-layer flex h-12 w-12 items-center justify-center rounded-full text-on-surface-variant"
+          class="state-layer flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant"
           :class="menu ? '!text-primary' : ''"
           title="更多操作"
           aria-haspopup="menu"

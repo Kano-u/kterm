@@ -5,11 +5,11 @@ import { activeTerm, setView } from '../terminal.js'
 
 <template>
   <nav
-    class="flex flex-none items-center justify-center gap-2 bg-surface px-2 py-2 pb-[calc(env(safe-area-inset-bottom)+8px)]"
+    class="flex flex-none items-center justify-center gap-2 bg-surface px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]"
     aria-label="视图切换"
   >
     <button
-      class="state-layer flex h-10 min-w-28 flex-none items-center justify-center gap-1.5 rounded-full px-5 text-sm transition-colors"
+      class="state-layer flex h-9 min-w-24 flex-none items-center justify-center gap-1.5 rounded-full px-4 text-[13px] transition-colors"
       :class="
         state.view === 'files'
           ? 'bg-primary-container font-medium text-on-primary-container'
@@ -21,7 +21,7 @@ import { activeTerm, setView } from '../terminal.js'
       文件
     </button>
     <button
-      class="state-layer relative flex h-10 min-w-28 flex-none items-center justify-center gap-1.5 rounded-full px-5 text-sm transition-colors"
+      class="state-layer relative flex h-9 min-w-24 flex-none items-center justify-center gap-1.5 rounded-full px-4 text-[13px] transition-colors"
       :class="
         state.view === 'term'
           ? 'bg-primary-container font-medium text-on-primary-container'

@@ -6,7 +6,7 @@ import Icon from './Icon.vue'
 <template>
   <div
     v-if="toastState.show"
-    class="m3-elevate fixed left-1/2 z-[70] flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-lg px-4 py-3 text-sm shadow-[0_3px_10px_rgba(0,0,0,0.2)]"
+    class="m3-elevate fixed left-1/2 z-[70] flex max-w-[90vw] -translate-x-1/2 items-center gap-2 rounded-lg px-3.5 py-2.5 text-[13px] shadow-[0_3px_10px_rgba(0,0,0,0.2)]"
     :class="
       toastState.type === 'ok'
         ? 'bg-inverse-surface text-inverse-on-surface'
