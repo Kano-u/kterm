@@ -4,7 +4,6 @@
  *   status: 'starting' | 'running' | 'ended',
  *   busy: boolean,        // 是否有命令在运行（T3 运行锁定）
  *   degraded: boolean,    // 该 shell 无 OSC 133 集成（cmd），busy 为启发式近似
- *   outsideRoot: boolean, // cwd 是否在 root 外（T2）
  *   ws: WebSocket | null,
  * }>
  */
@@ -36,7 +35,7 @@ export function isTermOpen(tabId) {
 export function ensureTermEntry(tabId) {
   let t = state.terminals.get(tabId)
   if (!t) {
-    t = reactive({ status: 'starting', busy: false, degraded: false, outsideRoot: false, ws: null })
+    t = reactive({ status: 'starting', busy: false, degraded: false, ws: null })
     state.terminals.set(tabId, t)
   }
   return t
@@ -112,7 +111,7 @@ function onJsonMsg(tab, entry, msg, handlers) {
       handlers.onExit && handlers.onExit(tab.id)
       break
     case 'cwd':
-      handleCwd(tab, entry, msg.abs)
+      handleTerminalCwd(tab, msg.abs)
       break
     case 'shell': // T3：首帧 shell 信息（降级提示）
       entry.degraded = !!msg.degraded
@@ -150,15 +149,9 @@ export function closeTerminal(tabId) {
   return true
 }
 
-/* ---------- T2：双向目录同步 ---------- */
-
-/* cwd 换算相对 root 路径。
- * 服务端 /api/list 返回 {"path": "<相对路径>"}，root 绝对路径可由首次列表得知；
- * 这里用「root 内路径必以 rootDir 前缀开头」的约定换算。
- * rootDir 在建连前由 /api/list 的 meta 无法直接获得——改为利用导航接口：
- * tab.path 相对路径 + 终端上报 abs，服务端 Resolve 的逆运算在本端做不了，
- * 因此由服务端保证：cwd abs 一定来自 Resolve 语义；此处仅做前缀剥离。 */
-let rootDir = '' // root 绝对路径（首次 cwd 同步时由 /api/root 获取或推断）
+/* ---------- T2：双向目录同步 ----------
+ * 终端 OSC 7 上报的 cwd 是绝对路径，统一换算为展示路径（见 store.js 路径工具）。
+ * 访问范围不受限，因此终端 cd 到哪里，文件页就跟到哪里。 */
 
 /* 导航回调由外部（App.vue）注入，避免 terminal.js ←→ actions.js 循环导入。
  * 签名 (tab, rel) => Promise */
@@ -168,46 +161,34 @@ export function setNavigateTab(fn) {
   navigateTabFn = fn
 }
 
-/* 供 App 启动时注入 root 绝对路径（list 元信息） */
-export function setRootDir(abs) {
-  rootDir = abs || ''
+/* 绝对路径 → 展示路径：位于起始目录内时用相对路径（'' 表示起始目录本身），
+ * 否则用 `/` 分隔的绝对路径。Windows 下 /api/root 与 OSC 7 上报的盘符大小写
+ * 可能不一致，比较时统一小写；返回值一律用 OSC 上报的原始大小写。 */
+export function absToDisplay(abs, startDir) {
+  if (!abs) return ''
+  const slash = (s) => s.replace(/\\/g, '/')
+  const a = slash(abs)
+  if (!startDir) return a
+  const root = slash(startDir).replace(/\/+$/, '')
+  const lower = a.toLowerCase()
+  const rl = root.toLowerCase()
+  if (lower === rl) return ''
+  if (lower.startsWith(rl + '/')) return a.slice(root.length + 1)
+  return a
 }
 
-/* abs（绝对路径）→ 相对 root 路径；不在 root 内返回 null。
- * Windows 下 /api/root 返回的 root 与 OSC 7 上报的 cwd 可能大小写不一致
- * （如 c:\users 与 C:\Users），比较时统一小写；路径本身不参与展示。 */
-export function absToRel(abs) {
-  if (!rootDir) return null
-  // rootDir 与 abs 均为 OS 原生分隔符；先统一分隔符再比较
-  const norm = (s) => s.replace(/\\/g, '/').toLowerCase()
-  const root = norm(rootDir).replace(/\/$/, '')
-  const p = norm(abs)
-  if (p === root) return ''
-  if (p.startsWith(root + '/')) {
-    // 返回值用原 abs 截取（保留真实大小写），分隔符统一为 '/'
-    return abs.slice(rootDir.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')
-  }
-  return null
-}
-
-/* 收到 OSC 7 上报：换算相对路径，决定文件页是否跟随 */
-function handleCwd(tab, entry, abs) {
-  const rel = absToRel(abs)
-  if (rel === null) {
-    // root 外：置标记，文件页不动
-    entry.outsideRoot = true
-    return
-  }
-  entry.outsideRoot = false
+/* 收到 OSC 7 上报（服务端已解析为绝对路径并随 cwd 帧下发）：
+ * 换算展示路径并导航过去 —— 访问范围不受限，终端 cd 到哪里文件页就跟到哪里。 */
+export function handleTerminalCwd(tab, abs) {
+  const rel = absToDisplay(abs, state.startDir)
   if (rel === tab.path) return // 防回环：注入 cd 后的上报与当前一致
-  // 终端 cd 到 root 内新目录 → 文件页跟随。
-  // 注意：导航到 tab 自身（终端可能属于后台标签），且标记 fromTerminal
-  // 以免 navigate 再向其注入 cd（那会在终端里凭空多出一条 cd 命令）。
   if (!navigateTabFn) return
+  // 注意：导航到 tab 自身（终端可能属于后台标签），且标记 fromTerminal，
+  // 以免再向其注入 cd（那会在终端里凭空多出一条 cd 命令）。
   Promise.resolve(navigateTabFn(tab, rel)).catch(() => { /* 错误已由 navigate 内部 toast */ })
 }
 
-/* 文件页导航 → 向该 tab 的终端注入 cd 帧（新路径在 root 内即相对路径本身） */
+/* 文件页导航 → 向该 tab 的终端注入 cd（展示路径原样传给服务端解析） */
 export function sendCd(tabId, rel) {
   const t = state.terminals.get(tabId)
   if (!t || !t.ws || t.ws.readyState !== WebSocket.OPEN) return

@@ -2,7 +2,7 @@
 /* TerminalView：管理每个 tabId 的 xterm 实例（层叠 + v-show，切回时 refit）。
  * WebSocket 建连与消息分发在 terminal.js，本组件负责 xterm 与 DOM。
  */
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onUnmounted } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -12,8 +12,6 @@ import { attachTouchScroll } from '../touchscroll.js'
 
 const layersEl = ref(null)
 const layerCount = ref(0) // 用于空态提示的显隐
-/* 当前激活 tab 的终端 cwd 是否在 root 外（T2 提示条） */
-const outsideRoot = computed(() => state.terminals.get(state.activeTabId)?.outsideRoot === true)
 /* tabId -> {el, term, fit, resizeObs, detachTouch} */
 const xs = new Map()
 
@@ -181,14 +179,6 @@ onUnmounted(() => {
 
 <template>
   <main class="relative min-h-0 flex-1 overflow-hidden bg-surface-1">
-    <!-- T2：终端 cwd 在 root 外时提示（不影响终端使用，仅文件页不跟随） -->
-    <div
-      v-if="outsideRoot"
-      class="absolute inset-x-0 top-0 z-10 flex items-center gap-1.5 bg-tertiary-container/95 px-3 py-1.5 text-xs text-on-tertiary-container"
-    >
-      <span class="material-symbols-outlined text-sm">info</span>
-      终端当前目录在根目录之外，文件页不会跟随。cd 回根目录内即可恢复同步。
-    </div>
     <!-- 空态：无任何会话层时显示 -->
     <div
       v-if="layerCount === 0"

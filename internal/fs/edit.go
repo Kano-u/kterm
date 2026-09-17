@@ -28,7 +28,7 @@ type FileContent struct {
 	Size    int64  `json:"size"`
 }
 
-// ReadFile 读取 rel（相对 root）指向的文本文件。
+// ReadFile 读取 rel（展示路径：相对 / 绝对）指向的文本文件。
 //
 // 拒绝：目录、超过 EditMaxSize 的文件、采样区含 NUL 字节的二进制文件。
 // 换行按原样保留（LF / CRLF 均不转换），由前端决定比对与写回策略。
@@ -65,7 +65,7 @@ func (r *Root) ReadFile(rel string) (*FileContent, error) {
 	}, nil
 }
 
-// WriteFile 原子覆盖 rel（相对 root）指向的文本文件。
+// WriteFile 原子覆盖 rel（展示路径：相对 / 绝对）指向的文本文件。
 //
 // modTime 是打开文件时读到的 mtime（unix 毫秒）：与磁盘现状不一致说明
 // 文件在编辑期间被外部程序改写，返回 ErrEditConflict（HTTP 409）。

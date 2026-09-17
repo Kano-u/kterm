@@ -11,7 +11,7 @@ import (
 
 // HandleWS 处理 GET /api/term/ws（受 hostCheck 中间件保护）。
 //
-// 参数：tab=<tabId>&path=<rel>（相对 root 的初始工作目录）。
+// 参数：tab=<tabId>&path=<展示路径>（终端初始工作目录，可相对可绝对）。
 // 流程：同 tabID 已有会话 → 拒绝（多窗口占用）；否则启动 PTY 会话，
 // WS 断开或 shell 退出时杀进程并从 manager 移除。
 func HandleWS(m *Manager) http.HandlerFunc {

@@ -32,7 +32,8 @@ func main() {
 
 	url := "http://127.0.0.1:" + portStr
 	fmt.Println("kfm 服务已启动:", url)
-	fmt.Println("根目录:", server.RootDir())
+	fmt.Println("起始目录:", server.RootDir())
+	fmt.Println("（起始目录 = 路径栏的空路径；访问范围不限，可前往任意绝对路径）")
 
 	// 局域网模式：默认监听地址仅本机时改为监听所有网卡，并打印当前 IP 地址。
 	// hostCheck 在 LAN 模式下仍会校验 Host 必须命中本机的某个地址，防 DNS rebinding。

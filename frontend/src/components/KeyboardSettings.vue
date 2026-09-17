@@ -211,7 +211,7 @@ async function onReset() {
       </div>
 
       <p class="px-1 pb-1 text-[11px] leading-relaxed text-on-surface-variant/70">
-        设置保存在根目录的 <code>.kfm-settings.json</code>（不会出现在文件列表中）。
+        设置保存在起始目录的 <code>.kfm-settings.json</code>（不会出现在文件列表中）。
       </p>
     </div>
   </main>

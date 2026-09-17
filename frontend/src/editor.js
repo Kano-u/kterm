@@ -1,7 +1,7 @@
 /* 编辑器会话管理（镜像 terminal.js 的架构）。
  *
  * state.editors: Map<tabId, {
- *   relPath, name,          // 编辑目标（相对 root）
+ *   relPath, name,          // 编辑目标（展示路径：相对 / 绝对）
  *   text,                   // 打开 / 重载时读到的内容（已归一为 \n）
  *   eol,                    // 原文件换行风格：'\n' | '\r\n'（保存时原样写回）
  *   modTime, size,          // 服务端读到的 mtime / 大小（冲突检测、大文件降级）
@@ -14,7 +14,7 @@
  * 大对象且不可代理），由 EditorView.vue 的普通 Map 持有；这里只保留纯 UI 状态
  * 与几个钩子函数。首屏不会静态加载任何 CodeMirror 包（本模块只用动态 import）。
  */
-import { state } from './store.js'
+import { state, joinPath } from './store.js'
 import { toast } from './toast.js'
 import { apiGet, apiOp } from './api.js'
 import { confirm } from './confirm.js'
@@ -95,7 +95,7 @@ export async function openEditor(tab, file) {
     toast('该类型文件不支持编辑')
     return false
   }
-  const rel = tab.path ? tab.path + '/' + file.name : file.name
+  const rel = joinPath(tab.path, file.name)
   const cur = state.editors.get(tab.id)
   if (cur && cur.relPath === rel) {
     enterEditorView(tab.id, rel)

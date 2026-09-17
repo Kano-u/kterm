@@ -98,12 +98,12 @@ func copyTree(src, dst string) error {
 	return copyFile(src, dst, info)
 }
 
-// CopyItems 将 src（相对 root）下的 names 复制到 dest，重名自动改名，逐项执行并汇总结果。
+// CopyItems 将 src 下的 names 复制到 dest（src/dest 为展示路径），重名自动改名，逐项执行并汇总结果。
 func (r *Root) CopyItems(src string, names []string, dest string) (*ClipReport, error) {
 	return r.clipItems(src, names, dest, false)
 }
 
-// MoveItems 将 src（相对 root）下的 names 移动到 dest；跨设备时降级为 copy+delete。
+// MoveItems 将 src 下的 names 移动到 dest（src/dest 为展示路径）；跨设备时降级为 copy+delete。
 func (r *Root) MoveItems(src string, names []string, dest string) (*ClipReport, error) {
 	return r.clipItems(src, names, dest, true)
 }

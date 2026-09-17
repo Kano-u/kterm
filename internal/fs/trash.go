@@ -15,7 +15,7 @@ import (
 
 // TrashMeta 回收站批次元数据（批次目录内 meta.json）。
 type TrashMeta struct {
-	Path  string   `json:"path"`  // 原所在目录（相对 root）
+	Path  string   `json:"path"`  // 原所在目录（展示路径：相对或绝对）
 	Time  int64    `json:"time"`  // 删除时间 unix 毫秒
 	Names []string `json:"names"` // 批次内的条目名
 }
@@ -32,37 +32,27 @@ func (r *Root) trashDir() string { return filepath.Join(r.dir, TrashDirName) }
 
 // guardNotTrash 禁止对回收站目录本身或其内部内容做删除操作。
 func (r *Root) guardNotTrash(full string) error {
-	rel, err := filepath.Rel(r.dir, full)
+	trash := r.trashDir()
+	rel, err := filepath.Rel(trash, full)
 	if err != nil {
 		return nil
 	}
-	if rel == "." {
-		return nil
-	}
-	if rel == TrashDirName || strings.HasPrefix(rel, TrashDirName+string(filepath.Separator)) {
+	if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
 		return fmt.Errorf("不能操作回收站内部内容")
 	}
 	return nil
 }
 
-// ensureDir 在 root 内确保目录存在（原目录被删也能恢复时用）。
+// ensureDir 确保目录存在（原目录被删也能恢复时用），返回绝对路径。
 func (r *Root) ensureDir(rel string) (string, error) {
-	clean, err := cleanRel(rel)
+	full, err := r.Resolve(rel)
 	if err != nil {
 		return "", err
 	}
-	full := filepath.Join(r.dir, clean)
 	if err := os.MkdirAll(full, 0o755); err != nil {
 		return "", err
 	}
-	real, err := filepath.EvalSymlinks(full)
-	if err != nil {
-		return "", err
-	}
-	if !within(r.dir, real) {
-		return "", fmt.Errorf("路径越界: %s", rel)
-	}
-	return real, nil
+	return full, nil
 }
 
 // moveOrFallback rename 移动；跨设备（EXDEV）降级为 copy + delete。
@@ -144,11 +134,7 @@ func (r *Root) DeleteItems(rel string, names []string, permanent bool) (*ClipRep
 		os.Remove(batch)
 		return report, nil
 	}
-	cleanRelPath, err := cleanRel(rel)
-	if err != nil {
-		cleanRelPath = rel
-	}
-	meta := TrashMeta{Path: cleanRelPath, Time: time.Now().UnixMilli(), Names: moved}
+	meta := TrashMeta{Path: StorePath(rel), Time: time.Now().UnixMilli(), Names: moved}
 	data, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		return report, nil

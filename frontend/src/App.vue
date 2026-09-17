@@ -20,7 +20,7 @@ import { onPopState, restorePath, navigateTab } from './actions.js'
 import {
   isSettingsState, restoreSettingsState, setSettingsExitHook,
 } from './settingsnav.js'
-import { setRootDir, setNavigateTab, anyBusy, setView } from './terminal.js'
+import { setNavigateTab, anyBusy, setView } from './terminal.js'
 import { anyDirty } from './editor.js'
 import { loadSettings } from './settings.js'
 import { initViewportWatch } from './viewport.js'
@@ -73,10 +73,13 @@ onMounted(async () => {
   loadSettings()
   stopViewportWatch = initViewportWatch()
 
-  // T2：获取 root 绝对路径（终端 cwd abs → 相对路径换算用）；失败不影响主功能
+  // T2：获取起始目录绝对路径（终端 cwd abs → 展示路径换算用）；失败不影响主功能
   fetch('/api/root')
     .then((r) => (r.ok ? r.json() : null))
-    .then((d) => d && setRootDir(d.root))
+    .then((d) => {
+      if (!d) return
+      state.startDir = d.root || ''
+    })
     .catch(() => {})
 
   const restored = loadState()

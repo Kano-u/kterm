@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "watch": "vite build --watch",
-    "test": "node test/layersync.test.mjs && node test/editor.test.mjs && node test/settingsnav.test.mjs && node test/touchscroll.test.mjs && node test/termgutter.test.mjs"
+    "test": "node test/layersync.test.mjs && node test/editor.test.mjs && node test/settingsnav.test.mjs && node test/touchscroll.test.mjs && node test/termgutter.test.mjs && node test/paths.test.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

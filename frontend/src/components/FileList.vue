@@ -6,7 +6,7 @@ import { fileIcon } from '../icons.js'
 import {
   state, activeTab, shownEntries, shownSearchResults, pruneSelection,
   enterMultiSelect, exitMultiSelect, toggleSelect,
-  fmtSize, fmtTime,
+  fmtSize, fmtTime, joinPath,
 } from '../store.js'
 import { navigate, gotoSearchHit } from '../actions.js'
 
@@ -72,7 +72,7 @@ function onClickRow(e) {
     return
   }
   if (e.isDir) {
-    navigate(tab0.path ? tab0.path + '/' + e.name : e.name)
+    navigate(joinPath(tab0.path, e.name))
   } else {
     sheetEntry.value = e
   }

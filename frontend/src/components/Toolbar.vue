@@ -1,10 +1,10 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import Icon from './Icon.vue'
-import { state, activeTab, saveState } from '../store.js'
-import { navigate, startSearch, onSearchInput, endSearch } from '../actions.js'
+import { state, activeTab, saveState, isAbsPath, parentPath } from '../store.js'
+import { apiList, apiGet } from '../api.js'
+import { navigate, startSearch, onSearchInput, endSearch, doCreate } from '../actions.js'
 import { ask } from '../dialog.js'
-import { doCreate } from '../actions.js'
 import { activeBusy } from '../terminal.js'
 import TrashPanel from './TrashPanel.vue'
 
@@ -19,7 +19,100 @@ const SORT_FIELDS = [
 const menu = ref(false)
 const sortMenu = ref(false)
 const searchEl = ref(null)
+const gotoEl = ref(null)
 const trashOpen = ref(false)
+const gotoOpen = ref(false)
+const gotoValue = ref('')
+const gotoErr = ref('')
+const gotoBusy = ref(false)
+
+/* 路径栏：从当前目录的绝对路径拆出各级段（从文件系统根 '/' 或 'C:/' 开始）。
+ * 绝对路径由 /api/list 随列表返回并记录在 tab.abs；老状态缺失时补拉一次。 */
+const absOf = computed(() => {
+  const t = tab()
+  if (isAbsPath(t.path)) return t.path
+  return t.abs || ''
+})
+const crumbs = computed(() => {
+  const abs = absOf.value
+  if (!abs) return []
+  const parts = abs.split('/').filter(Boolean)
+  const out = []
+  let acc = ''
+  parts.forEach((part, i) => {
+    if (i === 0 && /^[a-zA-Z]:$/.test(part)) acc = part + '/'
+    else if (i === 0) acc = '/' + part
+    else acc = acc.replace(/\/$/, '') + '/' + part
+    out.push({ label: part, path: acc })
+  })
+  return out
+})
+
+/* 起始目录的显示名（相对路径无面包屑时的文案） */
+const startName = computed(() => {
+  const s = (state.startDir || '').replace(/[\\/]+$/, '')
+  return s.split(/[\\/]/).pop() || '起始目录'
+})
+
+/* 面包屑可能很长（绝对路径自根展开），路径变化后滚到最右侧显示当前目录 */
+const navEl = ref(null)
+watch(() => [state.activeTabId, tab().path], async () => {
+  await nextTick()
+  const el = navEl.value
+  if (el) el.scrollLeft = el.scrollWidth
+})
+
+/* 老状态（无 tab.abs）补拉一次绝对路径，令面包屑可展现完整层级 */
+async function ensureAbs() {
+  const t = tab()
+  if (!t.path || isAbsPath(t.path) || t.abs) return
+  try {
+    const d = await apiGet('/api/list?path=' + encodeURIComponent(t.path))
+    if (t.path === (d && d.path)) t.abs = d.abs || ''
+  } catch {
+    /* 取不到就只显示起始目录入口 */
+  }
+}
+watch(() => [state.activeTabId, tab().path, tab().abs], ensureAbs, { immediate: true })
+
+/* 上级目录：
+ *   - 相对 / 绝对路径直接逐级向上（访问范围不受限，可越过起始目录）；
+ *   - 起始目录（''）的上级取自起始目录的绝对路径，文件系统根处返回 null（禁用按钮）。 */
+const up = computed(() => {
+  const t = tab()
+  if (t.path) return parentPath(t.path)
+  return absOf.value ? parentPath(absOf.value) : null
+})
+
+/* 打开「前往路径」对话框（绝对路径或相对起始目录的相对路径） */
+function openGoto() {
+  closeMenu()
+  gotoValue.value = tab().path
+  gotoErr.value = ''
+  gotoOpen.value = true
+  nextTick(() => {
+    if (gotoEl.value) {
+      gotoEl.value.focus()
+      gotoEl.value.select()
+    }
+  })
+}
+
+async function submitGoto() {
+  const v = gotoValue.value.trim()
+  if (!v) return
+  gotoBusy.value = true
+  try {
+    const d = await apiList(v)
+    gotoOpen.value = false
+    await navigate(d.path)
+  } catch (err) {
+    gotoErr.value = err.message
+  } finally {
+    gotoBusy.value = false
+  }
+}
+
 const searchQuery = computed({
   get: () => state.search.query,
   set: (v) => onSearchInput(v),
@@ -43,18 +136,6 @@ onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
 
 const tab = () => activeTab()
-
-/* 面包屑段 */
-function crumbList() {
-  const parts = tab().path ? tab().path.split('/') : []
-  let acc = ''
-  const out = [{ label: '根目录', path: '', icon: 'home' }]
-  for (const p of parts) {
-    acc = acc ? acc + '/' + p : p
-    out.push({ label: p, path: acc })
-  }
-  return out
-}
 
 /* 隐藏文件开关 */
 function toggleHidden() {
@@ -116,23 +197,55 @@ function cancelSearch() {
   <header class="relative flex-none bg-surface">
     <div class="flex items-center gap-1 px-1 py-2 pt-[calc(env(safe-area-inset-top)+8px)]">
       <template v-if="!state.search.active">
+        <!-- 上一级（已到文件系统根时禁用） -->
+        <button
+          class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant transition-opacity disabled:pointer-events-none disabled:opacity-35"
+          :disabled="up === null"
+          :title="up === null ? '已到文件系统根' : '上一级'"
+          aria-label="上一级"
+          @click="up !== null && navigate(up)"
+        >
+          <Icon name="arrow_upward" />
+        </button>
+
         <nav
+          ref="navEl"
           class="flex min-w-0 flex-1 items-center overflow-x-auto whitespace-nowrap no-scrollbar"
           aria-label="路径"
         >
-          <template v-for="(c, i) in crumbList()" :key="i">
+          <!-- 起始目录：无面包屑（相对路径且未取到绝对路径）时的兜底入口 -->
+          <button
+            v-if="crumbs.length === 0"
+            class="state-layer flex flex-none items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-on-surface"
+            :title="state.startDir || '起始目录'"
+            @click="navigate('')"
+          >
+            <Icon name="home" :size="18" :filled="true" />
+            <span class="max-w-[24vw] truncate">{{ startName }}</span>
+          </button>
+          <template v-for="(c, i) in crumbs" :key="i">
             <span v-if="i > 0" class="material-symbols-outlined text-on-surface-variant" style="font-size: 18px">chevron_right</span>
             <button
               class="state-layer flex flex-none items-center gap-1.5 rounded-full px-3 py-2 text-sm text-on-surface-variant"
-              :class="i === crumbList().length - 1 ? '!font-medium !text-on-surface' : ''"
-              :aria-current="i === crumbList().length - 1 ? 'page' : undefined"
+              :class="i === crumbs.length - 1 ? '!font-medium !text-on-surface' : ''"
+              :aria-current="i === crumbs.length - 1 ? 'page' : undefined"
+              :title="c.path"
               @click="navigate(c.path)"
             >
-              <Icon v-if="c.icon" :name="c.icon" :size="18" :filled="i === 0" />
               <span class="max-w-[24vw] truncate">{{ c.label }}</span>
             </button>
           </template>
         </nav>
+
+        <!-- 前往路径：直接输入绝对路径或相对路径 -->
+        <button
+          class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
+          title="前往路径"
+          aria-label="前往路径"
+          @click.stop="openGoto"
+        >
+          <Icon name="edit_location" />
+        </button>
 
         <!-- 排序按钮：点开后弹出排序列表 -->
         <div class="relative flex-none">
@@ -252,5 +365,52 @@ function cancelSearch() {
 
     <!-- 回收站面板 -->
     <TrashPanel v-if="trashOpen" @close="trashOpen = false" />
+
+    <!-- 前往路径对话框 -->
+    <Teleport to="body">
+      <div
+        v-if="gotoOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+        @click.self="gotoOpen = false"
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          class="m3-pop w-full max-w-md rounded-[28px] bg-surface-2 p-5 pb-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
+        >
+          <div class="mb-1 text-xl font-normal text-on-surface">前往路径</div>
+          <p class="mb-3 text-xs leading-relaxed text-on-surface-variant">
+            可输入绝对路径（如 <code>/sdcard</code>、<code>C:/Users</code>），或相对起始目录的相对路径。
+          </p>
+          <input
+            ref="gotoEl"
+            v-model="gotoValue"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="绝对路径或相对路径"
+            class="h-14 w-full rounded-xl bg-surface-3 px-4 text-[15px] text-on-surface caret-primary outline-none focus:ring-2 focus:ring-primary/60"
+            @keydown.enter.prevent="submitGoto"
+            @keydown.esc="gotoOpen = false"
+          >
+          <p v-if="gotoErr" class="mt-2 text-xs text-error">{{ gotoErr }}</p>
+          <div class="mt-4 flex items-center justify-end gap-1">
+            <button
+              class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary"
+              @click="gotoOpen = false"
+            >
+              取消
+            </button>
+            <button
+              class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-40"
+              :disabled="gotoBusy"
+              @click="submitGoto"
+            >
+              前往
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </header>
 </template>

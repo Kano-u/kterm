@@ -115,10 +115,14 @@ func TestSearchTimeout(t *testing.T) {
 	}
 }
 
-// 路径越界仍被拒绝。
-func TestSearchPathGuard(t *testing.T) {
+// 搜索同样接受任意路径（绝对 / 相对 / 含 ..）。
+func TestSearchPathAnywhere(t *testing.T) {
 	r := newSearchTestRoot(t)
-	if _, err := r.Search(context.Background(), "../outside", "x"); err == nil {
-		t.Fatal(".. 应被拒绝")
+	mkFile(t, r, "sub", "hit.txt")
+	if _, err := r.Search(context.Background(), "../"+filepath.Base(r.dir)+"/sub", "hit"); err != nil {
+		t.Fatalf("相对越出起始目录应可搜: %v", err)
+	}
+	if _, err := r.Search(context.Background(), filepath.ToSlash(filepath.Join(r.dir, "sub")), "hit"); err != nil {
+		t.Fatalf("绝对路径应可搜: %v", err)
 	}
 }

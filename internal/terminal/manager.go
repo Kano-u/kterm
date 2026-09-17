@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
 )
@@ -13,7 +14,7 @@ type Manager struct {
 	resolve  func(rel string) (string, error) // fs.Root.Resolve 注入
 }
 
-// NewManager 创建会话注册表；resolve 用于把 WS 的 path 参数（相对 root）
+// NewManager 创建会话注册表；resolve 用于把 WS 的 path 参数（相对起始目录或绝对路径）
 // 解析为初始工作目录绝对路径，可传 nil（回退为相对当前进程 cwd）。
 func NewManager(resolve func(rel string) (string, error)) *Manager {
 	return &Manager{sessions: make(map[string]*Session), resolve: resolve}
@@ -29,7 +30,8 @@ func (m *Manager) SetResolver(resolve func(rel string) (string, error)) {
 	m.resolve = resolve
 }
 
-// Resolve 把相对 root 的路径解析为绝对路径（初始工作目录 / T2 cd 注入共用）。
+// Resolve 把 path 参数（相对起始目录或绝对路径）解析为绝对路径
+// （初始工作目录 / 文件页导航注入 cd 共用）。未注入 resolver 时直接按绝对路径处理。
 func (m *Manager) Resolve(rel string) (string, error) {
 	m.mu.Lock()
 	resolve := m.resolve
@@ -37,7 +39,10 @@ func (m *Manager) Resolve(rel string) (string, error) {
 	if resolve != nil {
 		return resolve(rel)
 	}
-	return filepath.Abs(rel)
+	if rel == "" {
+		return os.Getwd()
+	}
+	return filepath.Abs(filepath.FromSlash(rel))
 }
 
 // Get 返回 tabID 对应的会话，无则返回 nil。

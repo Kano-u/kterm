@@ -7,12 +7,20 @@ export let nextTabId = 1
 export function newTab(path = '') {
   return {
     id: nextTabId++,
-    path, // 相对 root 的路径（'' = root）
+    path, // 展示路径：'' = 起始目录 | 相对路径 | 绝对路径（'/' 分隔）
+    abs: '', // 当前 path 的绝对路径（由 /api/list 附带，面包屑用）
     history: [path],
     histIdx: 0,
     cache: null, // {path, entries}
     loading: false,
   }
+}
+
+/* 记录一次目录列举结果（路径 / 绝对路径 / 条目），导航各路径共用 */
+export function applyListing(tab, data) {
+  tab.path = data.path || ''
+  tab.abs = data.abs || ''
+  tab.cache = { path: tab.path, entries: data.entries || [] }
 }
 
 export const state = reactive({
@@ -27,13 +35,58 @@ export const state = reactive({
   settingsPage: '', // 设置页内的子页：'' = 设置列表 | 'keyboard'（不持久化）
   keyboardBar: false, // 软键盘是否弹出（viewport.js 维护，不持久化）
   keyboardInset: 0, // 被软键盘遮挡的高度（px）
-  terminals: new Map(), // tabId -> {status,busy,outsideRoot,ws}（不持久化，见 terminal.js）
+  terminals: new Map(), // tabId -> {status,busy,degraded,ws}（不持久化，见 terminal.js）
   editors: new Map(), // tabId -> {relPath,name,dirty,...}（不持久化，见 editor.js）
   bootError: '',
+  startDir: '', // 起始目录绝对路径（/api/root，仅用于路径栏展示，不参与解析）
 })
 
 export function activeTab() {
   return state.tabs.find((t) => t.id === state.activeTabId) || state.tabs[0]
+}
+
+/* ---------- 路径工具 ----------
+ * 服务端约定：所有 path 均为 `/` 分隔的展示路径。
+ *   - ''      起始目录（程序启动时的 cwd）
+ *   - 'a/b'   相对起始目录的相对路径（允许 '..'，可越出起始目录）
+ *   - '/a/b'  POSIX 绝对路径
+ *   - 'C:/a'  Windows 绝对路径
+ * 访问范围不受限，因此这里不再有「越界」概念。 */
+
+/* Windows 盘符绝对路径（C:/…） */
+export function isWinAbs(p) {
+  return /^[a-zA-Z]:\//.test(p)
+}
+
+/* 任意绝对路径（POSIX / Windows） */
+export function isAbsPath(p) {
+  return p.startsWith('/') || isWinAbs(p)
+}
+
+/* 拼接子路径 */
+export function joinPath(base, name) {
+  if (!base) return name
+  return base.endsWith('/') ? base + name : base + '/' + name
+}
+
+/* 上级目录：返回 null 表示已到文件系统根，没有更上一层
+ * （'' 的含义是「起始目录」，不能用来表示「无上级」）。 */
+export function parentPath(p) {
+  if (!p) return null
+  if (/^\/+$/.test(p)) return null // '/' 已是文件系统根
+  const s = p.replace(/\/+$/, '')
+  if (/^[a-zA-Z]:$/.test(s)) return null // C: / C:/ 盘符根
+  if (isWinAbs(s)) {
+    const i = s.lastIndexOf('/')
+    return i <= 2 ? s.slice(0, 3) : s.slice(0, i) // C:/x → C:/
+  }
+  if (s.startsWith('/')) {
+    if (s === '') return null // '/' 已是文件系统根
+    const i = s.lastIndexOf('/')
+    return i <= 0 ? '/' : s.slice(0, i)
+  }
+  const i = s.lastIndexOf('/')
+  return i < 0 ? '' : s.slice(0, i) // 'a' 的上级是起始目录
 }
 
 /* ---------- 持久化 ---------- */
@@ -43,7 +96,7 @@ export function saveState() {
     localStorage.setItem(
       STATE_KEY,
       JSON.stringify({
-        tabs: state.tabs.map((t) => ({ id: t.id, path: t.path, history: t.history, histIdx: t.histIdx })),
+        tabs: state.tabs.map((t) => ({ id: t.id, path: t.path, abs: t.abs, history: t.history, histIdx: t.histIdx })),
         activeTabId: state.activeTabId,
         sort: state.sort,
         showHidden: state.showHidden,
@@ -64,6 +117,7 @@ export function loadState() {
     state.tabs = s.tabs.map((t) => {
       const tab = newTab(t.path || '')
       tab.id = t.id || tab.id
+      tab.abs = t.abs || ''
       if (Array.isArray(t.history) && t.history.length) {
         tab.history = t.history
         tab.histIdx = Math.min(Math.max(t.histIdx || 0, 0), t.history.length - 1)
@@ -88,7 +142,7 @@ export async function validateRestoredTabs(apiList) {
     state.tabs.map(async (t) => {
       try {
         const data = await apiList(t.path)
-        t.cache = { path: data.path || '', entries: data.entries || [] }
+        applyListing(t, data)
       } catch {
         if (t.path !== '') {
           t.path = ''
@@ -96,8 +150,9 @@ export async function validateRestoredTabs(apiList) {
           t.histIdx = 0
           try {
             const data = await apiList('')
-            t.cache = { path: '', entries: data.entries || [] }
+            applyListing(t, data)
           } catch {
+            t.abs = ''
             t.cache = { path: '', entries: [] }
           }
         }
@@ -234,8 +289,18 @@ export function isHidden(name) {
 }
 
 export function baseName(path) {
-  return path ? (path.split('/').pop() || path) : '根目录'
+  if (!path) return state.startDir ? startDirName() : '起始目录'
+  const s = path.replace(/\/+$/, '')
+  if (isWinAbs(s) && /^[a-zA-Z]:$/.test(s)) return s // 盘符根
+  return s.split('/').pop() || '/'
 }
+
+/* 起始目录的显示名（最后一段） */
+function startDirName() {
+  const s = state.startDir.replace(/[\\/]+$/, '')
+  return s.split(/[\\/]/).pop() || state.startDir || '起始目录'
+}
+export { startDirName }
 
 export function fmtSize(n) {
   if (n < 1024) return n + ' B'

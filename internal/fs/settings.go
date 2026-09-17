@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// SettingsFileName 是 user settings 文件名，位于 root 内，列表与搜索永远排除。
+// SettingsFileName 是 user settings 文件名，位于起始目录内，列表与搜索永远排除。
 const SettingsFileName = ".kfm-settings.json"
 
 // 设置内容的规模上限：够用即可，避免异常输入把配置和界面撑爆。

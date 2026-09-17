@@ -34,7 +34,7 @@ function itemSummary(it) {
 }
 
 function totalNames(it) {
-  return it.names.map((n) => (it.path ? it.path + '/' + n : n)).join('、')
+  return it.names.map((n) => (it.path ? it.path.replace(/\/+$/, '') + '/' + n : n)).join('、')
 }
 
 async function onRestore(it) {
@@ -120,7 +120,7 @@ async function onEmpty() {
               <div class="min-w-0 flex-1">
                 <div class="truncate text-[15px] text-on-surface">{{ itemSummary(it) }}</div>
                 <div class="truncate text-xs text-on-surface-variant">
-                  {{ fmtTime(it.time) }} · 原位置：/{{ it.path || '' }}
+                  {{ fmtTime(it.time) }} · 原位置：{{ it.path ? it.path : '起始目录' }}
                 </div>
               </div>
             </div>

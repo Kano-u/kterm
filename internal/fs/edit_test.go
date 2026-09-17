@@ -126,13 +126,31 @@ func TestReadFileRejectsBinary(t *testing.T) {
 	}
 }
 
-func TestReadFilePathEscape(t *testing.T) {
+// 路径不设边界：相对路径（含 ..）可以越出起始目录，绝对路径同样可用。
+func TestReadFileAllowsAnywhere(t *testing.T) {
 	r := newEditTestRoot(t)
-	if _, err := r.ReadFile("../outside.txt"); err == nil {
-		t.Fatal("越界路径应被拒绝")
+	out := filepath.Join(filepath.Dir(r.dir), filepath.Base(r.dir)+"-outside.txt")
+	t.Cleanup(func() { os.Remove(out) })
+	if err := os.WriteFile(out, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := r.ReadFile("C:/windows/win.ini"); err == nil {
-		t.Fatal("绝对路径应被拒绝")
+
+	rel := "../" + filepath.Base(r.dir) + "-outside.txt"
+	got, err := r.ReadFile(rel)
+	if err != nil {
+		t.Fatalf("相对越出起始目录应可读: %v", err)
+	}
+	if got.Content != "outside" {
+		t.Fatalf("内容不对: %q", got.Content)
+	}
+
+	// 绝对路径（API 使用 / 分隔的展示形态）
+	got, err = r.ReadFile(filepath.ToSlash(out))
+	if err != nil {
+		t.Fatalf("绝对路径应可读: %v", err)
+	}
+	if got.Content != "outside" {
+		t.Fatalf("绝对路径内容不对: %q", got.Content)
 	}
 }
 
@@ -253,10 +271,17 @@ func TestWriteFileOversize(t *testing.T) {
 	}
 }
 
-func TestWriteFilePathEscape(t *testing.T) {
+// 绝对路径同样可写（访问范围不限）。
+func TestWriteFileAbsolutePath(t *testing.T) {
 	r := newEditTestRoot(t)
-	if _, err := r.WriteFile("../evil.txt", "x", 0); err == nil {
-		t.Fatal("越界路径应被拒绝")
+	abs := writeTestFile(t, r, "a.txt", "old")
+	info, _ := os.Stat(abs)
+	time.Sleep(5 * time.Millisecond)
+	if _, err := r.WriteFile(filepath.ToSlash(abs), "new", info.ModTime().UnixMilli()); err != nil {
+		t.Fatalf("绝对路径应可写: %v", err)
+	}
+	if raw, _ := os.ReadFile(abs); string(raw) != "new" {
+		t.Fatalf("内容不对: %q", raw)
 	}
 }
 

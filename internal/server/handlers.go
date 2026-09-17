@@ -62,22 +62,28 @@ func init() {
 func RootDir() string { return root.Dir() }
 
 func handleList(w http.ResponseWriter, r *http.Request) {
-	rel := r.URL.Query().Get("path")
+	rel := fs.DisplayPath(r.URL.Query().Get("path"))
 	entries, err := root.List(rel)
 	if err != nil {
 		errToHTTP(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"path": rel, "entries": entries})
+	// abs 是当前目录的绝对路径（/ 分隔），供前端拼面包屑；不确定时为空。
+	abs := ""
+	if full, err := root.Resolve(rel); err == nil {
+		abs = fs.DisplayPath(full)
+	}
+	writeJSON(w, map[string]any{"path": rel, "abs": abs, "entries": entries})
 }
 
-// handleRoot 返回 root 绝对路径（T2：终端 cwd abs → 相对路径换算用）。
+// handleRoot 返回起始目录（程序启动时的 cwd）绝对路径。
+// 注意：它现在只是「空路径 / 相对路径的解析基准」，不是可访问范围的边界。
 func handleRoot(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"root": root.Dir()})
 }
 
 func handleSearch(w http.ResponseWriter, r *http.Request) {
-	rel := r.URL.Query().Get("path")
+	rel := fs.DisplayPath(r.URL.Query().Get("path"))
 	q := r.URL.Query().Get("q")
 	ctx, cancel := context.WithTimeout(r.Context(), fs.SearchTimeout)
 	defer cancel()
@@ -324,7 +330,7 @@ func handleTrashPurge(w http.ResponseWriter, r *http.Request) {
 // 编辑状态（dirty、撤销栈、高亮）完全在前端。
 
 func handleRead(w http.ResponseWriter, r *http.Request) {
-	rel := r.URL.Query().Get("path")
+	rel := fs.DisplayPath(r.URL.Query().Get("path"))
 	fc, err := root.ReadFile(rel)
 	if err != nil {
 		errToHTTP(w, err)

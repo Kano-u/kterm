@@ -32,7 +32,7 @@ import Icon from './Icon.vue'
     </ul>
 
     <p class="px-4 py-3 text-[11px] leading-relaxed text-on-surface-variant/70">
-      设置保存在根目录的 <code>.kfm-settings.json</code>（不会出现在文件列表中）。
+      设置保存在起始目录的 <code>.kfm-settings.json</code>（不会出现在文件列表中）。
     </p>
   </main>
 </template>

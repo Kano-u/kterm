@@ -1,19 +1,22 @@
-// Package fs 提供文件系统访问能力，所有操作均限定在启动时固化的 root 目录内。
+// Package fs 提供文件系统访问能力。
+//
+// 路径参数不设边界：既可以是绝对路径，也可以是相对「起始目录」的相对路径。
+// 「起始目录」是程序启动时的 cwd，仅作为空路径/相对路径的解析基准，
+// 以及回收站、设置文件的存放位置；它不再是可访问范围的边界。
 package fs
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// Root 固化的根目录（绝对路径、符号链接已解析）。
+// Root 只有一个锚点「起始目录」：空路径与相对路径都以它为基准解析。
 type Root struct {
 	dir string
 }
 
-// NewRoot 以 cwd 为基准创建 Root，符号链接解析后固化。
+// NewRoot 以 cwd 为基准创建 Root。
 func NewRoot() (*Root, error) {
 	wd, err := os.Getwd()
 	if err != nil {
@@ -22,86 +25,35 @@ func NewRoot() (*Root, error) {
 	return NewRootAt(wd)
 }
 
-// NewRootAt 以 dir 为基准创建 Root（dir 必须存在，符号链接解析后固化）。
-// 除 NewRoot 外，测试与嵌入式场景也用它获得一个不依赖进程 cwd 的根目录。
+// NewRootAt 以 dir 为基准创建 Root（dir 必须存在）。
+// 除 NewRoot 外，测试与嵌入式场景也用它获得一个不依赖进程 cwd 的起始目录。
 func NewRootAt(dir string) (*Root, error) {
-	real, err := filepath.EvalSymlinks(dir)
+	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return nil, fmt.Errorf("解析工作目录失败: %w", err)
 	}
-	return &Root{dir: real}, nil
+	return &Root{dir: filepath.Clean(abs)}, nil
 }
 
-// Dir 返回根目录绝对路径。
+// Dir 返回起始目录绝对路径。
 func (r *Root) Dir() string { return r.dir }
 
-// cleanRel 对相对路径做 lexical 清洗：拒绝绝对路径与 ..。
-func cleanRel(rel string) (string, error) {
-	if rel == "" {
-		return "", nil
-	}
-	if filepath.IsAbs(rel) || strings.HasPrefix(rel, `/`) || (len(rel) > 1 && rel[1] == ':') {
-		return "", fmt.Errorf("不支持绝对路径: %s", rel)
-	}
-	parts := strings.FieldsFunc(rel, func(r rune) bool { return r == '/' || r == '\\' })
-	var out []string
-	for _, p := range parts {
-		switch p {
-		case "..":
-			return "", fmt.Errorf("路径不允许包含 ..")
-		case ".", "":
-			// 忽略
-		default:
-			out = append(out, p)
-		}
-	}
-	return filepath.Join(out...), nil
-}
-
-// Resolve 将 rel（相对 root）解析为 root 内的绝对路径。
-// 目标不存在时对其存在的最近父目录做符号链接与越界校验。
+// Resolve 把 API 传入的 path 解析为文件系统绝对路径：
+//
+//   - ""（空）  → 起始目录
+//   - 绝对路径  → 清洗后原样返回
+//   - 相对路径  → 相对起始目录解析（允许 ..，不设越界限制）
+//
+// 与旧实现不同，这里不再解析符号链接、也不再校验是否位于起始目录内：
+// 访问范围就是整台机器，路径安全交由操作系统的权限模型负责。
+// 返回值使用 OS 原生分隔符（Windows 为 `\`），API 层输出时统一转 `/`。
 func (r *Root) Resolve(rel string) (string, error) {
-	clean, err := cleanRel(rel)
-	if err != nil {
-		return "", err
+	if rel == "" {
+		return r.dir, nil
 	}
-	full := filepath.Join(r.dir, clean)
-
-	// 优先整体解析（目标存在的情况）
-	if real, err := filepath.EvalSymlinks(full); err == nil {
-		if !within(r.dir, real) {
-			return "", fmt.Errorf("路径越界: %s", rel)
-		}
-		return real, nil
+	p := filepath.FromSlash(rel)
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(r.dir, p)
 	}
-
-	// 目标不存在：向上找最近存在的祖先并校验，再拼回剩余部分
-	existing := full
-	rest := ""
-	for {
-		if real, err := filepath.EvalSymlinks(existing); err == nil {
-			if !within(r.dir, real) {
-				return "", fmt.Errorf("路径越界: %s", rel)
-			}
-			if rest != "" {
-				return filepath.Join(real, rest), nil
-			}
-			return real, nil
-		}
-		parent := filepath.Dir(existing)
-		if parent == existing {
-			return "", fmt.Errorf("路径解析失败: %s", rel)
-		}
-		rest = filepath.Join(filepath.Base(existing), rest)
-		existing = parent
-	}
-}
-
-// within 判断 p 是否等于 root 或位于 root 之内。
-func within(root, p string) bool {
-	rel, err := filepath.Rel(root, p)
-	if err != nil {
-		return false
-	}
-	return rel == "." || (!strings.HasPrefix(rel, "..") && !filepath.IsAbs(rel))
+	return filepath.Clean(p), nil
 }

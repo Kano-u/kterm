@@ -1,7 +1,7 @@
 import { toast } from './toast.js'
 import { apiList, apiOp, apiSearch } from './api.js'
 import {
-  state, activeTab, saveState, newTab, exitMultiSelect, resetSearch,
+  state, activeTab, saveState, newTab, exitMultiSelect, resetSearch, joinPath, applyListing,
 } from './store.js'
 import { confirm } from './confirm.js'
 import { sendCd, ensureUnlocked, ensureCloseable, removeTerm } from './terminal.js'
@@ -28,8 +28,7 @@ export async function navigateTab(tab, path, opts = {}) {
   exitMultiSelect()
   try {
     const data = await apiList(path)
-    tab.path = data.path || ''
-    tab.cache = { path: tab.path, entries: data.entries || [] }
+    applyListing(tab, data)
     // 截断前进分支，压入新记录
     tab.history = tab.history.slice(0, tab.histIdx + 1)
     if (tab.history[tab.histIdx] !== tab.path) {
@@ -99,8 +98,7 @@ export async function onPopState(ev, restorePath) {
 export async function restorePath(tab, path) {
   try {
     const data = await apiList(path)
-    tab.path = data.path || ''
-    tab.cache = { path: tab.path, entries: data.entries || [] }
+    applyListing(tab, data)
     syncTerminalCd(tab)
   } catch (err) {
     toast(err.message)
@@ -114,8 +112,9 @@ export async function addTab() {
   const tab = newTab()
   try {
     const data = await apiList('')
-    tab.cache = { path: '', entries: data.entries || [] }
+    applyListing(tab, data)
   } catch (err) {
+    tab.abs = ''
     tab.cache = { path: '', entries: [] }
     toast(err.message)
   }
@@ -171,8 +170,7 @@ export function switchTab(id) {
     // 无缓存（恢复后首次切换）才请求
     apiList(tab.path)
       .then((data) => {
-        tab.path = data.path || ''
-        tab.cache = { path: tab.path, entries: data.entries || [] }
+        applyListing(tab, data)
         saveState()
         syncTerminalCd(tab)
       })
@@ -187,8 +185,7 @@ export async function refreshActive() {
   const tab = activeTab()
   try {
     const data = await apiList(tab.path)
-    tab.path = data.path || ''
-    tab.cache = { path: tab.path, entries: data.entries || [] }
+    applyListing(tab, data)
     saveState()
   } catch (err) {
     toast(err.message)
@@ -373,9 +370,9 @@ async function runSearch() {
 /* 点搜索结果：目录直接进入；文件跳到其父目录并短暂高亮该行 */
 export async function gotoSearchHit(hit) {
   const tab = activeTab()
-  const target = hit.dir ? (tab.path ? tab.path + '/' + hit.dir : hit.dir) : tab.path
+  const target = joinPath(tab.path, hit.dir)
   if (hit.isDir) {
-    const full = target ? (target + '/' + hit.name) : hit.name
+    const full = joinPath(target, hit.name)
     endSearch()
     await navigate(full)
     return

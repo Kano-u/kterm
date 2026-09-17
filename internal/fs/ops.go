@@ -21,7 +21,7 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// Mkdir 在 dir（相对 root）下新建名为 name 的目录。重名直接报错。
+// Mkdir 在 dir（展示路径）下新建名为 name 的目录。重名直接报错。
 func (r *Root) Mkdir(dir, name string) error {
 	if err := ValidateName(name); err != nil {
 		return err
@@ -40,7 +40,7 @@ func (r *Root) Mkdir(dir, name string) error {
 	return nil
 }
 
-// Create 在 dir（相对 root）下新建名为 name 的空文件。重名直接报错。
+// Create 在 dir（展示路径）下新建名为 name 的空文件。重名直接报错。
 func (r *Root) Create(dir, name string) error {
 	if err := ValidateName(name); err != nil {
 		return err
