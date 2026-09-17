@@ -3,7 +3,7 @@
  * state.terminals: Map<tabId, {
  *   status: 'starting' | 'running' | 'ended',
  *   busy: boolean,        // T3 使用
- *   outsideRoot: boolean, // T2 使用
+ *   outsideRoot: boolean, // cwd 是否在 root 外（T2）
  *   ws: WebSocket | null,
  * }>
  */
@@ -66,7 +66,7 @@ export function connectTerminal(tab, handlers) {
     }
     try {
       const msg = JSON.parse(ev.data)
-      onJsonMsg(tab.id, entry, msg, handlers)
+      onJsonMsg(tab, entry, msg, handlers)
     } catch {
       /* 忽略非法帧 */
     }
@@ -87,21 +87,85 @@ export function connectTerminal(tab, handlers) {
   return entry
 }
 
-function onJsonMsg(tabId, entry, msg, handlers) {
+function onJsonMsg(tab, entry, msg, handlers) {
   switch (msg.t) {
     case 'exit': // shell 退出（T4 完整处理；T1 先标记结束）
       entry.status = 'ended'
-      handlers.onExit && handlers.onExit(tabId)
+      handlers.onExit && handlers.onExit(tab.id)
       break
     case 'error':
       toast(msg.d || '终端启动失败')
       entry.status = 'ended'
-      handlers.onExit && handlers.onExit(tabId)
+      handlers.onExit && handlers.onExit(tab.id)
       break
-    case 'cwd': // T2
+    case 'cwd':
+      handleCwd(tab, entry, msg.abs)
+      break
     case 'busy': // T3
       break
   }
+}
+
+/* ---------- T2：双向目录同步 ---------- */
+
+/* cwd 换算相对 root 路径。
+ * 服务端 /api/list 返回 {"path": "<相对路径>"}，root 绝对路径可由首次列表得知；
+ * 这里用「root 内路径必以 rootDir 前缀开头」的约定换算。
+ * rootDir 在建连前由 /api/list 的 meta 无法直接获得——改为利用导航接口：
+ * tab.path 相对路径 + 终端上报 abs，服务端 Resolve 的逆运算在本端做不了，
+ * 因此由服务端保证：cwd abs 一定来自 Resolve 语义；此处仅做前缀剥离。 */
+let rootDir = '' // root 绝对路径（首次 cwd 同步时由 /api/root 获取或推断）
+
+/* 导航回调由外部（App.vue）注入，避免 terminal.js ←→ actions.js 循环导入。
+ * 签名 (tab, rel) => Promise */
+let navigateTabFn = null
+
+export function setNavigateTab(fn) {
+  navigateTabFn = fn
+}
+
+/* 供 App 启动时注入 root 绝对路径（list 元信息） */
+export function setRootDir(abs) {
+  rootDir = abs || ''
+}
+
+/* abs（绝对路径）→ 相对 root 路径；不在 root 内返回 null */
+export function absToRel(abs) {
+  if (!rootDir) return null
+  // rootDir 与 abs 均为 OS 原生分隔符；先统一分隔符再比较
+  const norm = (s) => s.replace(/\\/g, '/')
+  const root = norm(rootDir).replace(/\/$/, '')
+  const p = norm(abs)
+  if (p === root) return ''
+  if (p.startsWith(root + '/')) {
+    return p.slice(root.length + 1)
+  }
+  return null
+}
+
+/* 收到 OSC 7 上报：换算相对路径，决定文件页是否跟随 */
+function handleCwd(tab, entry, abs) {
+  const rel = absToRel(abs)
+  if (rel === null) {
+    // root 外：置标记，文件页不动
+    entry.outsideRoot = true
+    return
+  }
+  entry.outsideRoot = false
+  if (rel === tab.path) return // 防回环：注入 cd 后的上报与当前一致
+  // 终端 cd 到 root 内新目录 → 文件页跟随。
+  // 注意：导航到 tab 自身（终端可能属于后台标签），且标记 fromTerminal
+  // 以免 navigate 再向其注入 cd（那会在终端里凭空多出一条 cd 命令）。
+  if (!navigateTabFn) return
+  Promise.resolve(navigateTabFn(tab, rel)).catch(() => { /* 错误已由 navigate 内部 toast */ })
+}
+
+/* 文件页导航 → 向该 tab 的终端注入 cd 帧（新路径在 root 内即相对路径本身） */
+export function sendCd(tabId, rel) {
+  const t = state.terminals.get(tabId)
+  if (!t || !t.ws || t.ws.readyState !== WebSocket.OPEN) return
+  if (t.status !== 'running') return
+  t.ws.send(JSON.stringify({ t: 'cd', rel }))
 }
 
 /* 发送 JSON 控制帧 */

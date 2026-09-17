@@ -58,6 +58,11 @@ func handleList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"path": rel, "entries": entries})
 }
 
+// handleRoot 返回 root 绝对路径（T2：终端 cwd abs → 相对路径换算用）。
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, map[string]any{"root": root.Dir()})
+}
+
 func handleSearch(w http.ResponseWriter, r *http.Request) {
 	rel := r.URL.Query().Get("path")
 	q := r.URL.Query().Get("q")

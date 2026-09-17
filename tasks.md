@@ -34,19 +34,19 @@
 
 ### 服务端
 
-- [ ] `osc.go`：输出流 OSC 扫描器，旁路解析 OSC 7 与 OSC 133，不吞字节、原样透传
-- [ ] `osc_test.go`：跨帧截断、不完整序列、非 OSC 转义透传、UTF-8 多字节被帧边界切开、超长/恶意序列
-- [ ] shell 集成注入：pwsh 原生；Windows PowerShell 5.1 包装 `prompt` 函数；bash/zsh 用 `PROMPT_COMMAND`/`precmd`+`preexec`；cmd 无集成（降级标记）
-- [ ] 收到 C→S `{"t":"cd","rel":...}` 帧：Resolve 成绝对路径后拼接 cd 命令写入 PTY stdin（PowerShell 用反斜杠路径）
-- [ ] OSC 7 解析结果推送 S→C `{"t":"cwd","abs":...}`
+- [x] `osc.go`：输出流 OSC 扫描器，旁路解析 OSC 7 与 OSC 133，不吞字节、原样透传
+- [x] `osc_test.go`：跨帧截断、不完整序列、非 OSC 转义透传、UTF-8 多字节被帧边界切开、超长/恶意序列
+- [x] shell 集成注入：pwsh 原生；Windows PowerShell 5.1 包装 `prompt` 函数；bash/zsh 用 `PROMPT_COMMAND`/`precmd`+`preexec`；cmd 无集成（降级标记）
+- [x] 收到 C→S `{"t":"cd","rel":...}` 帧：Resolve 成绝对路径后拼接 cd 命令写入 PTY stdin（PowerShell 用反斜杠路径）
+- [x] OSC 7 解析结果推送 S→C `{"t":"cwd","abs":...}`
 
 ### 前端
 
-- [ ] 收到 `cwd` 消息：换算相对 root 路径；root 内且 ≠ tab.path → 调 `navigate()`；root 外 → 置 outsideRoot，文件页不动
-- [ ] 防回环：注入 cd 引发的 cwd 上报与当前 tab.path 一致时不再触发 navigate
-- [ ] `actions.js`：`navigate()` / `tabGo()` / `switchTab()` 成功后，若该 tab 有运行中终端且新路径在 root 内 → 发送 cd 帧
-- [ ] TerminalView 顶部提示条：「当前目录在 root 外，文件页不会跟随」（outsideRoot 时显示）
-- [ ] 手测：文件页点目录 ↔ 终端 cd，双向跳转无回环抖动（pwsh / powershell / bash）
+- [x] 收到 `cwd` 消息：换算相对 root 路径；root 内且 ≠ tab.path → 调 `navigate()`；root 外 → 置 outsideRoot，文件页不动
+- [x] 防回环：注入 cd 引发的 cwd 上报与当前 tab.path 一致时不再触发 navigate
+- [x] `actions.js`：`navigate()` / `tabGo()` / `switchTab()` 成功后，若该 tab 有运行中终端且新路径在 root 内 → 发送 cd 帧
+- [x] TerminalView 顶部提示条：「当前目录在 root 外，文件页不会跟随」（outsideRoot 时显示）
+- [x] 手测：文件页点目录 ↔ 终端 cd，双向跳转无回环抖动（pwsh / powershell / bash）
 
 ## T3 运行状态与锁定
 

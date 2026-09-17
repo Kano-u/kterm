@@ -16,11 +16,16 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import EntrySheet from './components/EntrySheet.vue'
 import { loadState, validateRestoredTabs, activeTab, state } from './store.js'
 import { apiList } from './api.js'
-import { onPopState, restorePath } from './actions.js'
+import { onPopState, restorePath, navigateTab } from './actions.js'
+import { setRootDir, setNavigateTab } from './terminal.js'
+
+/* terminal.js ←→ actions.js 双向依赖：由本处一次性注入导航回调，避免循环导入。
+ * 终端 OSC 7 上报 → 文件页跟随（fromTerminal 阻断回注 cd，防回环）。 */
+setNavigateTab((tab, rel) => navigateTab(tab, rel, { fromTerminal: true }))
 
 /* 主题：固定深色（M3 baseline dark），不再跟随系统 prefers-color-scheme。
- * <html class="dark"> 已在 index.html 静态标注（避免首屏白闪），这里再兜底一次；
- * 色值令牌见 style.css，终端配色见 components/TerminalView.vue。 */
+ * 保留 <html class="dark"> 供 Tailwind dark: 变体使用；色值令牌见 style.css。
+ * 终端主题（TerminalView）与本处保持一致。 */
 document.documentElement.classList.add('dark')
 
 function fatal(msg) {
@@ -34,6 +39,12 @@ function onPop(ev) {
 
 /* 启动：恢复状态 → 校验各 tab 路径 → 注册返回手势 */
 onMounted(async () => {
+  // T2：获取 root 绝对路径（终端 cwd abs → 相对路径换算用）；失败不影响主功能
+  fetch('/api/root')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => d && setRootDir(d.root))
+    .catch(() => {})
+
   const restored = loadState()
   if (restored) {
     await validateRestoredTabs(apiList)

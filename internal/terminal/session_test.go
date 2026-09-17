@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -59,13 +60,13 @@ func (f *fakePty) written() string {
 }
 
 // stub 其余 Pty 接口方法。
-func (f *fakePty) Name() string                            { return "fake" }
+func (f *fakePty) Name() string                              { return "fake" }
 func (f *fakePty) Command(name string, a ...string) *pty.Cmd { return nil }
 func (f *fakePty) CommandContext(ctx context.Context, name string, a ...string) *pty.Cmd {
 	return nil
 }
-func (f *fakePty) Resize(w, h int) error                   { return nil }
-func (f *fakePty) Fd() uintptr                             { return 0 }
+func (f *fakePty) Resize(w, h int) error { return nil }
+func (f *fakePty) Fd() uintptr           { return 0 }
 
 // fakeCmd：Wait 阻塞直到 Kill。
 type fakeCmd struct {
@@ -77,7 +78,7 @@ type fakeCmd struct {
 
 func newFakeCmd() *fakeCmd { return &fakeCmd{done: make(chan struct{})} }
 
-func (c *fakeCmd) Start() error                 { return nil }
+func (c *fakeCmd) Start() error { return nil }
 func (c *fakeCmd) Wait() error {
 	<-c.done
 	return nil
@@ -260,6 +261,48 @@ func TestKillClosesDoneAndRemoves(t *testing.T) {
 	}
 }
 
+func TestCdInjectionPushesCwdFrame(t *testing.T) {
+	m, s, fp, _, ws := setupSession(t)
+	defer s.Kill()
+	go s.Serve(ws)
+	time.Sleep(20 * time.Millisecond)
+
+	wantPath, err := m.Resolve("a/b")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	// 模拟 shell 输出 OSC 7（cd 生效后的 prompt 上报）；
+	// Windows 下上报的 file URL 是原生反斜杠路径，这里与真实行为一致。
+	wantAbs := wantPath
+	if runtime.GOOS == "windows" {
+		wantAbs = strings.ReplaceAll(wantPath, "/", "\\")
+	}
+	fp.outCh <- []byte("\x1b]7;file://" + urlPathEscape(wantAbs) + "\x07")
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Fatal("no cwd frame")
+		}
+		for _, f := range ws.frames() {
+			if strings.Contains(f, `"t":"cwd"`) {
+				// 会话 cwd 已更新、帧已推送即认为成功
+				if s.Cwd() == wantAbs {
+					return
+				}
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// urlPathEscape 把绝对路径转为 file URL path 部分（仅用于测试构造 OSC 7）。
+func urlPathEscape(p string) string {
+	p = strings.ReplaceAll(p, "\\", "/")
+	if runtime.GOOS == "windows" && len(p) >= 2 && p[1] == ':' {
+		p = "/" + p
+	}
+	return p
+}
 func TestCdInjection(t *testing.T) {
 	m, s, fp, _, ws := setupSession(t)
 	defer s.Kill()
@@ -273,15 +316,29 @@ func TestCdInjection(t *testing.T) {
 	ws.send(`{"t":"cd","rel":"a/b"}`)
 	time.Sleep(20 * time.Millisecond)
 	got := fp.written()
+	// fakePty 会话 shell 未探测（nil），Windows 回退 powershell 语法
+	wantKind := "sh"
 	if runtimeGOOS() == "windows" {
-		want := "cd /d \"" + wantPath + "\""
-		if !strings.Contains(got, want) {
-			t.Errorf("cd injection on windows: got %q, want contains %q", got, want)
-		}
-	} else {
-		want := "cd \"" + wantPath + "\""
-		if !strings.Contains(got, want) {
-			t.Errorf("cd injection on unix: got %q, want contains %q", got, want)
+		wantKind = "powershell"
+	}
+	want := cdCommand(wantKind, wantPath)
+	if !strings.Contains(got, want) {
+		t.Errorf("cd injection: got %q, want contains %q", got, want)
+	}
+}
+
+func TestCdCommandSyntax(t *testing.T) {
+	cases := []struct{ kind, abs, want string }{
+		{"powershell", `C:\a b`, "Set-Location 'C:\\a b'\r\n"},
+		{"pwsh", `C:\it's`, "Set-Location 'C:\\it''s'\r\n"},
+		{"cmd", `C:\a b`, `cd /d "C:\a b"` + "\r\n"},
+		{"bash", "/a b", "cd '/a b'\n"},
+		{"bash", "/a'b", "cd '/a'\\''b'\n"},
+		{"sh", "/x", "cd '/x'\n"},
+	}
+	for _, c := range cases {
+		if got := cdCommand(c.kind, c.abs); got != c.want {
+			t.Errorf("cdCommand(%q,%q) = %q, want %q", c.kind, c.abs, got, c.want)
 		}
 	}
 }

@@ -4,10 +4,24 @@ import {
   state, activeTab, saveState, newTab, exitMultiSelect, resetSearch,
 } from './store.js'
 import { confirm } from './confirm.js'
+import { sendCd } from './terminal.js'
 
-/* 进入新目录：更新 tab 栈 + pushState（Android 返回手势 = 返回上级） */
-export async function navigate(path) {
-  const tab = activeTab()
+/* 文件页导航成功后向该 tab 的终端注入 cd（T2 双向同步） */
+function syncTerminalCd(tab) {
+  if (state.terminals.has(tab.id)) sendCd(tab.id, tab.path)
+}
+
+/* 进入新目录：更新 tab 栈 + pushState（Android 返回手势 = 返回上级）。
+ * opts.fromTerminal=true 表示该导航由终端 OSC 7 上报驱动：
+ *   1) 不向其回注 cd（否则终端里会凭空多出一条 cd 命令）；
+ *   2) 可能是非活动标签的终端在后台改目录，不夺焦、不写 history。 */
+export async function navigate(path, opts = {}) {
+  await navigateTab(activeTab(), path, opts)
+}
+
+/* 指定标签导航。tab 非当前活动标签时只更新其缓存/历史（后台同步，不 pushState）。 */
+export async function navigateTab(tab, path, opts = {}) {
+  if (!state.tabs.includes(tab)) return // 标签已被关闭
   exitMultiSelect()
   try {
     const data = await apiList(path)
@@ -19,8 +33,11 @@ export async function navigate(path) {
       tab.history.push(tab.path)
       tab.histIdx++
     }
-    history.pushState({ tabId: tab.id, path: tab.path }, '')
+    if (tab.id === state.activeTabId) {
+      history.pushState({ tabId: tab.id, path: tab.path }, '')
+    }
     saveState()
+    if (!opts.fromTerminal) syncTerminalCd(tab)
   } catch (err) {
     toast(err.message)
   }
@@ -40,6 +57,7 @@ export async function tabGo(delta) {
     tab.cache = { path: tab.path, entries: data.entries || [] }
     history.pushState({ tabId: tab.id, path: tab.path }, '')
     saveState()
+    syncTerminalCd(tab)
   } catch (err) {
     toast(err.message)
   }
@@ -66,6 +84,7 @@ export async function restorePath(tab, path) {
     const data = await apiList(path)
     tab.path = data.path || ''
     tab.cache = { path: tab.path, entries: data.entries || [] }
+    syncTerminalCd(tab)
   } catch (err) {
     toast(err.message)
   }
@@ -115,6 +134,7 @@ export function switchTab(id) {
         tab.path = data.path || ''
         tab.cache = { path: tab.path, entries: data.entries || [] }
         saveState()
+        syncTerminalCd(tab)
       })
       .catch((err) => toast(err.message))
   }

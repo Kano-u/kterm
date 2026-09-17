@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/aymanbagabas/go-pty"
@@ -28,13 +29,26 @@ import (
 //	S→C text  {"t":"exit"}                        shell 进程退出
 //	S→C text  {"t":"error","d":"..."}             会话建立失败 / 拒绝
 //	S→C text  {"t":"cwd"|"busy",...}              OSC 解析结果（T2/T3）
+//	C→S text  {"t":"cd","rel":"a/b"}              文件页导航注入
+//	S→C bin   PTY 原始输出字节（经 OSC 扫描器旁路解析，不吞字节）
+//	S→C text  {"t":"exit"}                        shell 进程退出
+//	S→C text  {"t":"error","d":"..."}             会话建立失败 / 拒绝
+//	S→C text  {"t":"cwd","abs":...}               OSC 7 解析结果（T2）
+//	S→C text  {"t":"busy","on":true}              OSC 133 解析结果（T3）
 type Session struct {
-	tabID string // 客户端文件标签 id（localStorage 持久化的那个）
-	cwd   string // 初始工作目录（绝对路径，由 fs.Resolve 得到）
-	mgr   *Manager // 所属注册表（退出时自行移除、cd 解析用）
+	tabID string     // 客户端文件标签 id（localStorage 持久化的那个）
+	cwd   string     // 最新工作目录（绝对路径；OSC 7 上报时更新）
+	shell *shellInfo // 探测到的 shell（测试假 PTY 时为 nil）
+	mgr   *Manager   // 所属注册表（退出时自行移除、cd 解析用）
 
 	pty pty.Pty
 	cmd cmdHandle // shell 进程句柄
+
+	busy bool       // OSC 133 标记的最新状态（T3 锁定使用）
+	mu   sync.Mutex // 保护 cwd / busy
+
+	// pushFrame 的目标：当前连接持有的回调（Serve 时设置），无连接时为 nil。
+	frameSink func(b []byte)
 
 	// closeOnce 保证退出清理只执行一次（WS 断开 / shell 退出双触发路径）。
 	closeOnce sync.Once
@@ -108,6 +122,7 @@ func (s *Session) launch() error {
 	if err != nil {
 		return errors.New("未找到可用的 shell")
 	}
+	s.shell = sh
 	p, err := pty.New()
 	if err != nil {
 		return err
@@ -126,9 +141,11 @@ func (s *Session) launch() error {
 // Serve 进入会话主循环：启动输出泵与退出监听，循环读取 WS 输入。
 // 返回即表示连接结束，调用方负责清理（杀 PTY + 从 manager 移除）。
 func (s *Session) Serve(ws wsConn) {
+	s.frameSink = func(b []byte) { _ = ws.Write(websocket.MessageText, b) }
 	go s.pumpOutput(ws)
 	go s.watchExit(ws)
 
+	defer func() { s.frameSink = nil }()
 	for {
 		msgType, data, err := ws.Read()
 		if err != nil {
@@ -165,13 +182,25 @@ func (s *Session) handleMessage(data []byte) {
 		if m.Cols > 0 && m.Rows > 0 {
 			_ = s.pty.Resize(m.Cols, m.Rows)
 		}
-	case "cd": // 文件页导航注入（T2 起由前端发送）
+	case "cd": // 文件页导航注入
 		abs, err := s.resolveRel(m.Rel)
 		if err != nil {
 			return
 		}
-		s.writeInput([]byte(cdCommand(runtimeGOOS(), abs)))
+		s.writeInput([]byte(cdCommand(s.shellKind(), abs)))
 	}
+}
+
+// shellKind 返回探测到的 shell 种类（未知时按运行时 GOOS 推断），
+// 决定 cd 注入的语法（见 cdCommand）。
+func (s *Session) shellKind() string {
+	if s.shell != nil && s.shell.kind != "" {
+		return s.shell.kind
+	}
+	if runtimeGOOS() == "windows" {
+		return "powershell" // 未探测到时 Windows 保守回退
+	}
+	return "sh"
 }
 
 // writeInput 写入 PTY stdin（ConPTY 写失败常伴随进程退出，忽略错误由退出监听收尾）。
@@ -179,16 +208,31 @@ func (s *Session) writeInput(b []byte) {
 	_, _ = s.pty.Write(b)
 }
 
-// pumpOutput 从 PTY 读输出并原样转发（binary 帧）。
+// outCWD S→C {"t":"cwd","abs":...}
+type outCWD struct {
+	Type string `json:"t"`
+	Abs  string `json:"abs"`
+}
+
+// outBusy S→C {"t":"busy","on":true}
+type outBusy struct {
+	Type string `json:"t"`
+	On   bool   `json:"on"`
+}
+
+// pumpOutput 从 PTY 读输出，经 OSC 扫描器旁路解析后原样转发（binary 帧）。
+// 扫描器不吞字节：emit 收到的字节就是透传给前端的全部输出。
 func (s *Session) pumpOutput(ws wsConn) {
+	scanner := newOSCScanner(
+		func(b []byte) { _ = ws.Write(websocket.MessageBinary, b) },
+		s.onOSC7,
+		s.onOSC133,
+	)
 	buf := make([]byte, 32*1024)
 	for {
 		n, err := s.pty.Read(buf)
 		if n > 0 {
-			out := buf[:n]
-			if werr := ws.Write(websocket.MessageBinary, out); werr != nil {
-				return
-			}
+			scanner.Feed(buf[:n])
 		}
 		if err != nil {
 			if err != io.EOF && !errors.Is(err, os.ErrClosed) {
@@ -197,6 +241,47 @@ func (s *Session) pumpOutput(ws wsConn) {
 			return
 		}
 	}
+}
+
+// onOSC7 处理 OSC 7 上报：更新会话 cwd 并推送 {"t":"cwd"}。
+func (s *Session) onOSC7(abs string) {
+	s.mu.Lock()
+	s.cwd = abs
+	s.mu.Unlock()
+	if b, err := json.Marshal(outCWD{Type: "cwd", Abs: abs}); err == nil {
+		s.pushFrame(b)
+	}
+}
+
+// onOSC133 处理 OSC 133 busy 标记：更新会话 busy 并推送 {"t":"busy"}（T3 消费）。
+func (s *Session) onOSC133(on bool) {
+	s.mu.Lock()
+	s.busy = on
+	s.mu.Unlock()
+	if b, err := json.Marshal(outBusy{Type: "busy", On: on}); err == nil {
+		s.pushFrame(b)
+	}
+}
+
+// pushFrame 把一条 text 帧写到当前连接（Serve 时绑定）；无连接时丢弃。
+func (s *Session) pushFrame(b []byte) {
+	if f := s.frameSink; f != nil {
+		f(b)
+	}
+}
+
+// Cwd 返回会话最新工作目录（绝对路径）。
+func (s *Session) Cwd() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cwd
+}
+
+// Busy 返回会话 busy 状态（T3 使用）。
+func (s *Session) Busy() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.busy
 }
 
 // watchExit 等 shell 进程退出，推送 exit 帧并收尾。
@@ -246,10 +331,18 @@ func (s *Session) resolveRel(rel string) (string, error) {
 
 var runtimeGOOS = func() string { return runtime.GOOS }
 
-// cdCommand 生成注入 PTY stdin 的 cd 命令（Windows 用反斜杠绝对路径 + /d）。
-func cdCommand(goos, abs string) string {
-	if goos == "windows" {
+// cdCommand 生成注入 PTY stdin 的 cd 命令，按 shell 种类区分语法：
+//   - powershell/pwsh：Set-Location 单引号（反斜杠原生路径，单引号内无需转义反斜杠；
+//     路径内单引号按 PS 规则翻倍）
+//   - cmd：cd /d 双引号
+//   - posix（bash/zsh/sh）：cd 单引号（路径内单引号按 POSIX 规则 '\”）
+func cdCommand(kind, abs string) string {
+	switch kind {
+	case "pwsh", "powershell":
+		return "Set-Location '" + strings.ReplaceAll(abs, "'", "''") + "'\r\n"
+	case "cmd":
 		return "cd /d \"" + abs + "\"\r\n"
+	default:
+		return "cd '" + strings.ReplaceAll(abs, "'", "'\\''") + "'\n"
 	}
-	return "cd \"" + abs + "\"\n"
 }
