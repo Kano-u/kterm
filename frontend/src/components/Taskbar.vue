@@ -61,6 +61,7 @@ function closeEditorSession(e) {
 <template>
   <nav
     v-if="!keyboardTakeover"
+    data-bottom-bar
     class="flex flex-none items-center justify-center gap-2 bg-surface px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]"
     aria-label="视图切换"
   >

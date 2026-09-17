@@ -8,6 +8,7 @@ import Icon from './Icon.vue'
 <template>
   <div
     v-if="state.clipboard && !state.multi.active"
+    data-bottom-bar
     class="m3-elevate fixed bottom-0 left-0 right-0 z-30 flex items-center gap-2 border-t border-outline-variant/40 bg-surface-3 px-1.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]"
   >
     <span class="ml-1.5 flex h-10 w-10 flex-none items-center justify-center rounded-full bg-primary/10 text-primary">

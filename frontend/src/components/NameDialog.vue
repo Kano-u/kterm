@@ -2,6 +2,7 @@
 import { ref, watch, nextTick } from 'vue'
 import { dialogState, closeDialog } from '../dialog.js'
 import { toast } from '../toast.js'
+import { EXT_PRESETS, applyExt } from '../nameext.js'
 
 const input = ref(null)
 
@@ -52,6 +53,17 @@ function insertDot() {
   el.focus()
 }
 
+/* 点扩展名快捷块：只写入扩展名（替换已有的 / 追加），不创建任何东西。
+ * 写完把光标留在主名末尾，方便接着打名字——移动端免去在软键盘上找点号。 */
+function pickExt(ext) {
+  const el = input.value
+  const r = applyExt(el ? el.value : dialogState.value, ext)
+  dialogState.value = r.value
+  if (!el) return
+  el.focus()
+  el.setSelectionRange(r.caret, r.caret)
+}
+
 function onKeydown(ev) {
   if (ev.key === 'Enter') {
     ev.preventDefault()
@@ -86,8 +98,19 @@ function onKeydown(ev) {
           class="h-14 w-full rounded-xl bg-surface-3 px-4 text-[15px] text-on-surface caret-primary outline-none focus:ring-2 focus:ring-primary/60"
           @keydown="onKeydown"
         >
-        <div class="mt-5 flex items-center justify-between gap-2">
+        <!-- 新建时才出现的常用扩展名：点一下只填扩展名，不创建文件 -->
+        <div v-if="dialogState.mode === 'new'" class="mt-3 flex items-center gap-1.5">
           <button
+            v-for="ext in EXT_PRESETS"
+            :key="ext"
+            class="state-layer flex h-8 min-w-0 flex-1 basis-0 items-center justify-center rounded-lg bg-surface-3 text-[12px] font-medium whitespace-nowrap text-on-surface-variant transition-colors hover:text-on-surface"
+            :title="'填入扩展名 ' + ext"
+            @click="pickExt(ext)"
+          >
+            {{ ext }}
+          </button>
+        </div>
+        <div class="mt-5 flex items-center justify-between gap-2">          <button
             class="state-layer flex h-11 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
             title="插入点号"
             @click="insertDot"

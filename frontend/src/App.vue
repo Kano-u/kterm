@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted, defineAsyncComponent, computed, ref, watch } from 'vue'
+import { onMounted, onUnmounted, defineAsyncComponent, computed, watch } from 'vue'
 import Tabbar from './components/Tabbar.vue'
 import Taskbar from './components/Taskbar.vue'
 import Toolbar from './components/Toolbar.vue'
@@ -27,7 +27,6 @@ import { loadSettings } from './settings.js'
 import { initViewportWatch } from './viewport.js'
 import { keyBarVisible } from './keybar.js'
 import { installBottomBarWatch } from './bottombar.js'
-
 /* 编辑器内核（CodeMirror）按需懒加载：只有真的打开过编辑器才会下载该 chunk。
  * 未打开时状态里没有任何编辑会话，v-if 保证组件根本不挂载。 */
 const EditorView = defineAsyncComponent(() => import('./components/EditorView.vue'))
@@ -70,8 +69,7 @@ function onBeforeUnload(ev) {
 /* 启动：恢复状态 → 校验各 tab 路径 → 注册返回手势 */
 let stopViewportWatch = () => {}
 let bottomBarWatch = { sync() {}, stop() {} }
-let stopBottomBarInset = () => {}
-const bottomBarEl = ref(null)
+let stopBottomBarWatch = () => {}
 
 onMounted(async () => {
   // 设置与软键盘检测与文件列表无关，先并行发起（失败不影响主功能）
@@ -115,17 +113,22 @@ onMounted(async () => {
   window.addEventListener('popstate', onPop)
   window.addEventListener('beforeunload', onBeforeUnload)
 
-  /* 底部浮层（Toast）避让底部栏：测量任务栏/按键栏占掉的高度写入
-   * --kfm-bottom-bar。软键盘造成的位移不改变元素尺寸（可能不触发
-   * ResizeObserver），因此额外在 keyboardInset 变化时补测。 */
-  bottomBarWatch = installBottomBarWatch({ el: bottomBarEl.value })
-  stopBottomBarInset = watch(() => state.keyboardInset, bottomBarWatch.sync, { flush: 'post' })
+  /* 底部浮层（Toast）避让底部栏：把所有可见底栏（任务栏 / 按键栏 / 多选栏 /
+   * 粘贴栏）测出的最大高度写入 --kfm-bottom-bar。
+   * 底栏是 v-if 挂载的（多选栏、粘贴栏唯条件出现），ResizeObserver 只对已观测
+   * 元素生效，因此以下变化都要补测一次。 */
+  bottomBarWatch = installBottomBarWatch()
+  stopBottomBarWatch = watch(
+    () => [keyBarVisible.value, state.multi.active, !!state.clipboard, state.keyboardInset],
+    bottomBarWatch.sync,
+    { flush: 'post' },
+  )
 })
 
 onUnmounted(() => {
   stopViewportWatch()
   bottomBarWatch.stop()
-  stopBottomBarInset()
+  stopBottomBarWatch()
   window.removeEventListener('popstate', onPop)
   window.removeEventListener('beforeunload', onBeforeUnload)
 })
@@ -156,11 +159,10 @@ onUnmounted(() => {
       <PasteBar />
     </template>
 
-    <!-- 软键盘弹出时，按键栏顶替底部任务栏；整个底部栏包一层用于测量高度 -->
-    <div ref="bottomBarEl" class="flex-none">
-      <KeyboardBar v-if="keyBarVisible" />
-      <Taskbar />
-    </div>
+    <!-- 软键盘弹出时，按键栏顶替底部任务栏。两条栏都标 data-bottom-bar，
+         由 bottombar.js 统一测量（Toast 据此避让）。 -->
+    <KeyboardBar v-if="keyBarVisible" />
+    <Taskbar />
 
     <!-- 全局浮层（EntrySheet 由 FileList 按选中条目持有，不是全局浮层） -->
     <Toast />

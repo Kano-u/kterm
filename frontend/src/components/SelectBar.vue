@@ -23,48 +23,55 @@ async function onDelete() {
 <template>
   <div
     v-if="state.multi.active"
-    class="m3-elevate fixed bottom-0 left-0 right-0 z-40 flex items-center gap-0.5 border-t border-outline-variant/40 bg-surface-3 px-1.5 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]"
+    data-bottom-bar
+    class="m3-elevate fixed bottom-0 left-0 right-0 z-40 border-t border-outline-variant/40 bg-surface-3 px-1.5 pt-0.5 pb-[calc(env(safe-area-inset-bottom)+4px)]"
   >
-    <span class="min-w-0 flex-1 truncate pl-1.5 text-[13px] font-medium text-on-surface">
+    <!-- 计数单独占一行：与四个操作按钮同行时，窄屏（360px）下计数是唯一可压缩的
+         元素，会被 truncate 成「已...」。单独一行后文字完整显示，按钮也能铺满宽度。 -->
+    <div class="truncate px-2 pb-0.5 text-[12px] font-medium text-on-surface-variant">
       已选 {{ state.multi.sel.size }} 项
-    </span>
-    <button
-      class="state-layer flex h-10 flex-none items-center rounded-full px-2.5 text-[13px] text-on-surface"
-      @click="selectAll"
-    >
-      <Icon name="select_all" :size="20" />
-      全选
-    </button>
-    <button
-      class="state-layer flex h-10 flex-none items-center rounded-full px-2.5 text-[13px] text-primary"
-      @click="copySelection"
-    >
-      <Icon name="content_copy" :size="20" />
-      复制
-    </button>
-    <button
-      class="state-layer flex h-10 flex-none items-center rounded-full px-2.5 text-[13px] text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
-      :disabled="activeBusy()"
-      :title="activeBusy() ? '终端正在运行命令' : '剪切'"
-      @click="cutSelection"
-    >
-      <Icon name="content_cut" :size="20" />
-      移动
-    </button>
-    <button
-      class="state-layer flex h-10 flex-none items-center rounded-full px-2.5 text-[13px] text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
-      :disabled="activeBusy()"
-      :title="activeBusy() ? '终端正在运行命令' : '删除'"
-      @click="onDelete"
-    >
-      <Icon name="delete" :size="20" />
-      删除
-    </button>
-    <button
-      class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
-      @click="exitMultiSelect()"
-    >
-      <Icon name="close" :size="20" />
-    </button>
+    </div>
+    <div class="flex items-center gap-0.5">
+      <button
+        class="state-layer flex h-10 min-w-0 flex-1 basis-0 items-center justify-center gap-1 rounded-full text-[13px] text-on-surface"
+        @click="selectAll"
+      >
+        <Icon name="select_all" :size="20" />
+        <span class="truncate">全选</span>
+      </button>
+      <button
+        class="state-layer flex h-10 min-w-0 flex-1 basis-0 items-center justify-center gap-1 rounded-full text-[13px] text-primary"
+        @click="copySelection"
+      >
+        <Icon name="content_copy" :size="20" />
+        <span class="truncate">复制</span>
+      </button>
+      <button
+        class="state-layer flex h-10 min-w-0 flex-1 basis-0 items-center justify-center gap-1 rounded-full text-[13px] text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+        :disabled="activeBusy()"
+        :title="activeBusy() ? '终端正在运行命令' : '剪切'"
+        @click="cutSelection"
+      >
+        <Icon name="content_cut" :size="20" />
+        <span class="truncate">移动</span>
+      </button>
+      <button
+        class="state-layer flex h-10 min-w-0 flex-1 basis-0 items-center justify-center gap-1 rounded-full text-[13px] text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
+        :disabled="activeBusy()"
+        :title="activeBusy() ? '终端正在运行命令' : '删除'"
+        @click="onDelete"
+      >
+        <Icon name="delete" :size="20" />
+        <span class="truncate">删除</span>
+      </button>
+      <button
+        class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
+        title="退出多选"
+        aria-label="退出多选"
+        @click="exitMultiSelect()"
+      >
+        <Icon name="close" :size="20" />
+      </button>
+    </div>
   </div>
 </template>

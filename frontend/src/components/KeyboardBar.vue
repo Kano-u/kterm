@@ -46,6 +46,7 @@ watch(ready, (ok) => {
   <!-- 紧凑布局：每行按键等宽铺满整行，行数由设置决定；
        被软键盘遮住时（resizes-visual 宿主）用 margin-bottom 抬高到键盘上方 -->
   <div
+    data-bottom-bar
     class="flex flex-none flex-col gap-0.5 border-t border-outline-variant/40 bg-surface px-0.5 pt-0.5 pb-[calc(env(safe-area-inset-bottom)+2px)]"
     :style="state.keyboardInset ? { marginBottom: state.keyboardInset + 'px' } : null"
     aria-label="终端按键栏"

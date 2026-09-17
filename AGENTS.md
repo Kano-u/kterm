@@ -32,7 +32,7 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
        └── web/             # 前端构建产物（go:embed，勿手改；由 `npm run build` 生成）
 └── frontend/               # Vue 3 + Tailwind + Vite 源码
     ├── vite.config.js      # outDir 指向 ../internal/server/web，dev 代理 /api
-    ├── test/               # 纯 node 回归测试（settingsnav/startup/editor/touchscroll/termgutter/bottombar/longpress/paths）
+    ├── test/               # 纯 node 回归测试（settingsnav/startup/editor/touchscroll/termgutter/bottombar/longpress/nameext/paths）
     └── src/
         ├── store.js        # 单一 reactive 状态（tabs/sort/clipboard/selection/editors）
         ├── actions.js      # 导航/标签/操作/剪贴板动作
@@ -41,8 +41,9 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
         ├── editor-lang.js  # 扩展名 → 语言包映射 + 自写 M3 深色 CM 主题
         ├── settings.js     # 用户设置缓存 + 启动命令解析（parseStartupCommand）
         ├── settingsnav.js  # 设置页两级导航（列表页 ↔ 子页）与未保存守卫
-        ├── bottombar.js    # 底部栏高度测量 → CSS 变量 --kfm-bottom-bar（浮层避让）
+        ├── bottombar.js    # 所有底栏的最大高度 → CSS 变量 --kfm-bottom-bar（浮层避让）
         ├── longpress.js    # 长按手势状态机（文件面板多选入口；抖动容忍 + 吞补发 click）
+        ├── nameext.js      # 新建面板的常用扩展名（纯字符串变换，点一下只填扩展名）
         ├── dialog.js / confirm.js / toast.js / loading.js
         └── components/      # Tabbar/Toolbar（含排序行）/FileList/SelectBar/PasteBar/
                             # Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
@@ -116,16 +117,24 @@ kfm 启动后按模板执行，`{url}` 替换为实际服务地址（模板中�
 - **回收站**：`<起始目录>/.kfm-trash/<unixnano-hex>/`，内含 `meta.json`（`{path, time, names[]}`）
   与原条目；`path` 保存展示路径（相对或绝对），跨会话恢复仍指向同一位置。一次删除 = 一个批次，
   恢复整批 rename 回去。列表 API 永远排除 `.kfm-trash`。
+- **新建**：`/api/create` 空文件、`/api/mkdir` 目录。对话框（`NameDialog.vue`）在新建模式
+  底部给一排常用扩展名（`.txt .md .json .py .css`，见 `nameext.js`），点一下只把扩展名
+  填进输入框（已有扩展名则替换），**不创建任何东西**——创建仍由「文件 / 文件夹」按钮触发。
 - **重名冲突**：copy/move/restore 自动改名 `名称 (2).ext` 递增；mkdir/create/rename 遇重名直接报错。
 - **排序/过滤在前端**：`Intl.Collator('zh-Hans-CN', {numeric:true})` 降级链 `'zh'` → 默认 locale；目录永远排前；切换无需请求。
 - **导航**：每标签独立 history，`history.pushState({tabId, path})` + `popstate` 使浏览器返回手势 = 返回上级；`localStorage`（key `kfm-state`）持久化 tabs/sort/showHidden（tab 同时记录 `path` 与 `abs`）。路径栏从文件系统根逐级展开（`C:/`、`/`），根处禁用「上一级」，「前往路径」对话框可直输绝对路径。
 - **编辑器**：`state.editors: Map<tabId, {relPath,name,dirty,...}>`（镜像 `state.terminals`），`state.view` 增加 `'editor'`（不持久化，刷新即丢，与终端一致）。CodeMirror 的 `EditorState` **不进响应式 store**，由 `EditorView.vue` 的普通 Map 持有，store 侧只存 UI 状态与 `getText/applyDoc/markSaved` 钩子。每标签同时只编辑一个文件；切走视图不销毁 doc（撤销栈与光标保留），点开新文件 / 关标签 / 关会话时若有 dirty 先确认。CM 内核与语言包、主题全部 `import()` 懒加载（`EditorView` 由 `defineAsyncComponent` + `v-if="state.editors.size > 0"` 挂载），首屏零开销。>512 KB 关闭语法高亮，>2 MB 服务端直接拒绝。换行：读入归一为 `\n` 供内核使用，保存按原风格（LF/CRLF）写回。
 - **剪贴板**：前端持有 `{mode, srcPath, names[]}`，服务端无状态，粘贴时才调 copy/move。
 - **多选**：入口是**长按文件行 500ms**（`longpress.js` 状态机 + `store.js` 的 `multi`）——
-  进入多选并选中该行，底部出现 SelectBar（全选/复制/移动/删除）；多选中点行 = 切换选中，
-  全部取消即自动退出。两个真机才暴露的坑写在 `longpress.js` 里：移动容忍 10px（否则触摸屏
-  按住时的 1–3px 抖动会不断取消计时），以及长按后抬手补发的 click 必须吞掉（否则会把刚
-  选中的项 toggle 掉 → 多选栏瞬间消失）。
+  进入多选并选中该行，底部出现 SelectBar（计数单独一行 + 全选/复制/移动/删除）；
+  多选中点行 = 切换选中，全部取消即自动退出。两个真机才暴露的坑写在 `longpress.js` 里：
+  移动容忍 10px（否则触摸屏按住时的 1–3px 抖动会不断取消计时），以及长按后抬手补发的
+  click 必须吞掉（否则会把刚选中的项 toggle 掉 → 多选栏瞬间消失）。
+- **窄屏优先**：底部各栏一行放不下时，纵向长而不是横向挤——SelectBar 的「已选 N 项」
+  单独占一行（原先与四个按钮同行，窄屏下它作为唯一可压缩元素被 truncate 成「已...」）；
+  EntrySheet 的「关闭」移到面板右上角 ×（原先排在按钮行最左，`justify-end` 下会被
+  挤出屏幕看不见）。底部栏的测量见 `bottombar.js`：给每条栏标 `data-bottom-bar`，
+  取所有可见栏的最大高度（不是求和——栏之间是层叠覆盖关系）。
 
 ## 编码约定
 
@@ -141,4 +150,4 @@ go test ./...
 cd frontend && npm test     # 纯 node 回归测试（无需浏览器/构建）
 ```
 
-`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、底部栏避让（浮层不与任务栏/按键栏重叠）、长按多选手势（抖动容忍/slop/吞补发 click/多指与取消）、路径语义（拼接/上级/展示名/cwd 换算）。
+`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、底部栏避让（取最大而非求和，浮层不与任何底栏重叠）、长按多选手势（抖动容忍/slop/吞补发 click/多指与取消）、新建面板扩展名（替换 vs 追加、隐藏文件名不误判、光标位置）、路径语义（拼接/上级/展示名/cwd 换算）。

@@ -52,10 +52,19 @@ async function onDelete() {
       <div
         role="dialog"
         aria-modal="true"
-        class="m3-elevate mb-[calc(env(safe-area-inset-bottom)+8px)] w-full max-w-lg rounded-t-[28px] bg-surface-2 pb-3 pt-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
+        class="m3-elevate relative mb-[calc(env(safe-area-inset-bottom)+8px)] w-full max-w-lg rounded-t-[28px] bg-surface-2 pb-3 pt-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
       >
-        <!-- drag handle -->
-        <div class="mx-auto mb-3 h-1 w-8 rounded-full bg-on-surface-variant/40" />
+        <!-- drag handle + 右上角关闭（原先「关闭」在底部按钮行，窄屏时排在
+             最左侧、会被 justify-end 挤出屏幕看不见；移到右上角后不再溢出） -->
+        <div class="relative mx-auto mb-3 h-1 w-8 rounded-full bg-on-surface-variant/40" />
+        <button
+          class="state-layer absolute right-3 top-2 flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant"
+          title="关闭"
+          aria-label="关闭"
+          @click="emit('close')"
+        >
+          <Icon name="close" :size="20" />
+        </button>
 
         <div class="flex items-center gap-3 px-6">
           <span class="flex h-12 w-12 flex-none items-center justify-center text-primary">
@@ -78,14 +87,8 @@ async function onDelete() {
 
         <div class="mt-4 flex justify-end gap-1 px-4">
           <button
-            class="state-layer flex h-12 flex-none items-center rounded-full px-5 text-sm font-medium text-primary"
-            @click="emit('close')"
-          >
-            关闭
-          </button>
-          <button
             v-if="canEdit()"
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
             :disabled="activeBusy()"
             :title="activeBusy() ? '终端正在运行命令' : '编辑'"
             @click="onEdit"
@@ -94,7 +97,7 @@ async function onDelete() {
             编辑
           </button>
           <button
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
             :disabled="activeBusy()"
             :title="activeBusy() ? '终端正在运行命令' : '删除'"
             @click="onDelete"
@@ -103,7 +106,7 @@ async function onDelete() {
             删除
           </button>
           <button
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
             :disabled="activeBusy()"
             :title="activeBusy() ? '终端正在运行命令' : '重命名'"
             @click="onRename"
