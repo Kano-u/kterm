@@ -32,7 +32,7 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
        └── web/             # 前端构建产物（go:embed，勿手改；由 `npm run build` 生成）
 └── frontend/               # Vue 3 + Tailwind + Vite 源码
     ├── vite.config.js      # outDir 指向 ../internal/server/web，dev 代理 /api
-    ├── test/               # 纯 node 回归测试（settingsnav/startup/editor/touchscroll/termgutter/paths）
+    ├── test/               # 纯 node 回归测试（settingsnav/startup/editor/touchscroll/termgutter/bottombar/paths）
     └── src/
         ├── store.js        # 单一 reactive 状态（tabs/sort/clipboard/selection/editors）
         ├── actions.js      # 导航/标签/操作/剪贴板动作
@@ -41,6 +41,7 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
         ├── editor-lang.js  # 扩展名 → 语言包映射 + 自写 M3 深色 CM 主题
         ├── settings.js     # 用户设置缓存 + 启动命令解析（parseStartupCommand）
         ├── settingsnav.js  # 设置页两级导航（列表页 ↔ 子页）与未保存守卫
+        ├── bottombar.js    # 底部栏高度测量 → CSS 变量 --kfm-bottom-bar（浮层避让）
         ├── dialog.js / confirm.js / toast.js / loading.js
         └── components/      # Tabbar/Toolbar（含排序行）/FileList/SelectBar/PasteBar/
                             # Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
@@ -134,4 +135,4 @@ go test ./...
 cd frontend && npm test     # 纯 node 回归测试（无需浏览器/构建）
 ```
 
-`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、路径语义（拼接/上级/展示名/cwd 换算）。
+`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、底部栏避让（浮层不与任务栏/按键栏重叠）、路径语义（拼接/上级/展示名/cwd 换算）。

@@ -12,7 +12,7 @@ import Icon from './Icon.vue'
         ? 'bg-inverse-surface text-inverse-on-surface'
         : 'bg-error-container text-on-error-container'
     "
-    :style="{ bottom: 'calc(24px + env(safe-area-inset-bottom))' }"
+    :style="{ bottom: 'calc(var(--kfm-bottom-bar, 0px) + 12px)' }"
     role="status"
   >
     <Icon :name="toastState.type === 'ok' ? 'check_circle' : 'error'" :size="20" />
