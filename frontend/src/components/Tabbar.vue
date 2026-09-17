@@ -11,9 +11,9 @@ function locked(id) {
 </script>
 
 <template>
-  <!-- 移动端优先：标签行固定 40px 高（py-1 + h-8），字号 13px；
-       标签宽度自适应平分可用宽度（flex-1），窄于 6.5rem 后转为横向滚动，
-       既能撑满屏幕、减少空白，也把纵向空间留给文件列表 -->
+  <!-- 移动端优先：标签行固定 40px 高（py-1 + h-8），字号 13px。
+       标签宽度随内容自适应（flex-none，不拉伸）——两个标签不会强行撑满一行；
+       仅当名称过长时用 max-w-[40vw] 截断，总宽超出时才横向滚动 -->
   <nav
     class="flex flex-none items-center gap-1 overflow-x-auto bg-surface px-1 py-1 no-scrollbar"
     aria-label="标签页"
@@ -21,7 +21,7 @@ function locked(id) {
     <div
       v-for="t in state.tabs"
       :key="t.id"
-      class="ripple state-layer flex h-8 min-w-[6.5rem] flex-1 basis-0 cursor-pointer items-center gap-1 rounded-none pl-2.5 pr-0.5 transition-colors"
+      class="ripple state-layer flex h-8 max-w-[40vw] min-w-0 flex-none cursor-pointer items-center gap-1 rounded-none pl-2.5 pr-0.5 transition-colors"
       :class="
         t.id === state.activeTabId
           ? 'bg-primary-container text-on-primary-container'
