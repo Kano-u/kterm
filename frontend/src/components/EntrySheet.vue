@@ -85,7 +85,18 @@ async function onDelete() {
           修改时间：{{ fmtTime(entry.mtime) }}
         </div>
 
+        <!-- 按钮顺序：删除、编辑、重命名（编辑仅在可编辑文本文件时出现，
+             所以它放在中间，两端的按钮位置不会因它出现与否而跳动） -->
         <div class="mt-4 flex justify-end gap-1 px-4">
+          <button
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            :disabled="activeBusy()"
+            :title="activeBusy() ? '终端正在运行命令' : '删除'"
+            @click="onDelete"
+          >
+            <Icon name="delete" :size="20" />
+            删除
+          </button>
           <button
             v-if="canEdit()"
             class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
@@ -95,15 +106,6 @@ async function onDelete() {
           >
             <Icon name="edit_document" :size="20" />
             编辑
-          </button>
-          <button
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
-            :disabled="activeBusy()"
-            :title="activeBusy() ? '终端正在运行命令' : '删除'"
-            @click="onDelete"
-          >
-            <Icon name="delete" :size="20" />
-            删除
           </button>
           <button
             class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
