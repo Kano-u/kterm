@@ -25,7 +25,7 @@ export function activeTerm() {
   return state.terminals.get(activeTab().id)
 }
 
-/* 该标签是否已打开终端会话（starting/running）——标签页标记用。
+/* 该标签是否已打开终端会话（starting/running）——底部「终端」按钮的关闭标记用。
  * 条目仅在真正建连/建 xterm 时创建，会话结束即移除，故存在即「已打开」。 */
 export function isTermOpen(tabId) {
   const t = state.terminals.get(tabId)
@@ -135,6 +135,19 @@ function endSession(tabId, msg) {
     state.view = 'files'
     if (msg) toast(msg, 'ok')
   }
+}
+
+/* 关闭该标签的终端会话（底部终端按钮的 ×）：杀掉 PTY、回到文件视图。
+ * xterm 层的回收由 TerminalView 监听 terminals 表变化完成。busy 时不允许（先中断命令）。 */
+export function closeTerminal(tabId) {
+  if (!state.terminals.has(tabId)) return false
+  if (isBusy(tabId)) {
+    toast('终端正在运行命令')
+    return false
+  }
+  if (state.view === 'term' && state.activeTabId === tabId) state.view = 'files'
+  removeTerm(tabId)
+  return true
 }
 
 /* ---------- T2：双向目录同步 ---------- */

@@ -57,7 +57,7 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 - 受 hostCheck 保护；查询参数 `tab=<tabId>&path=<相对 root 初始工作目录>`。
 - C→S（text JSON）：`{"t":"i","d":"<键入>"}`、`{"t":"resize","cols":N,"rows":N}`、`{"t":"cd","rel":"a/b"}`；
 - S→C：binary（PTY 原始输出，经 OSC 旁路扫描但不吞字节）与 text JSON `{"t":"shell"|"cwd"|"busy"|"exit"|"error",...}`。
-- 生命周期：WS 断开（含刷新）或 shell 退出即杀死 PTY 并从注册表移除；同一 tabId 二次连接被拒绝（提示「该标签的终端已被其他窗口占用」）。
+- 生命周期：WS 断开（含刷新）或 shell 退出即杀死 PTY 并从注册表移除；同一 tabId 二次连接被拒绝（提示「该标签的终端已被其他窗口占用」）。底部任务栏的「终端」按钮在会话已打开时显示 × 关闭入口（等价于杀 PTY 并回文件视图）；busy 时改为转圈，需先中断命令。
 
 ## 核心设计决策
 

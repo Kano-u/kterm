@@ -140,6 +140,16 @@ watch(
   },
 )
 
+/* 会话被外部关闭（底部「终端」按钮的 ×）→ 回收对应 xterm 层 */
+watch(
+  () => state.terminals.size,
+  () => {
+    for (const tabId of [...xs.keys()]) {
+      if (!state.terminals.has(tabId)) disposeXterm(tabId)
+    }
+  },
+)
+
 /* 激活标签变化 / 视图切换 → 显示对应层并惰性建连 */
 watch(
   () => [state.activeTabId, state.view],
