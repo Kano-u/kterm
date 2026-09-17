@@ -13,9 +13,11 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-/* 仅文本文件可编辑（仿终端 running 锁定：终端运行中不开放写操作） */
+/* 仅文本文件可编辑（仿终端 running 锁定：终端运行中不开放写操作）。
+ * props.entry 理论上必填，但缺 prop 时抛错会连带炸掉整棵组件树，故按空条目处理。 */
 function canEdit() {
-  return !props.entry.isDir && isTextName(props.entry.name)
+  const e = props.entry
+  return !!e && !e.isDir && isTextName(e.name)
 }
 
 async function onEdit() {

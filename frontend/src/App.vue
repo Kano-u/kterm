@@ -14,7 +14,6 @@ import Toast from './components/Toast.vue'
 import Loading from './components/Loading.vue'
 import NameDialog from './components/NameDialog.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
-import EntrySheet from './components/EntrySheet.vue'
 import { loadState, validateRestoredTabs, activeTab, state } from './store.js'
 import { apiList } from './api.js'
 import { onPopState, restorePath, navigateTab } from './actions.js'
@@ -144,11 +143,10 @@ onUnmounted(() => {
     <KeyboardBar v-if="keyBarVisible" />
     <Taskbar />
 
-    <!-- 全局浮层 -->
+    <!-- 全局浮层（EntrySheet 由 FileList 按选中条目持有，不是全局浮层） -->
     <Toast />
     <Loading />
     <NameDialog />
     <ConfirmDialog />
-    <EntrySheet />
   </div>
 </template>

@@ -8,7 +8,7 @@
  * doc，切回即恢复（含撤销栈与光标）。CM 的 EditorState 不进响应式 store，
  * 只在这里的普通 Map 中持有；store 侧的会话条目只存纯 UI 状态与钩子。
  */
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { EditorState, Compartment, Annotation } from '@codemirror/state'
 import {
   EditorView as CM, keymap, lineNumbers, drawSelection, dropCursor,
@@ -22,7 +22,9 @@ import { indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemir
 import { state } from '../store.js'
 import { editorOf, saveEditor, closeEditor, requestReload, toggleReadOnly } from '../editor.js'
 import { languageFor, m3Theme } from '../editor-lang.js'
+import { installLayerSync } from '../layersync.js'
 import { activeBusy } from '../terminal.js'
+import { toast } from '../toast.js'
 import Icon from './Icon.vue'
 
 const layersEl = ref(null)
@@ -36,6 +38,7 @@ const External = Annotation.define()
 const current = computed(() => editorOf(state.activeTabId))
 const busy = computed(() => activeBusy())
 const cursor = ref({ line: 1, col: 1, lines: 1 })
+const loadFailed = ref(false)
 
 function readonlyExtensions() {
   return [EditorState.readOnly.of(true), CM.editable.of(false)]
@@ -79,7 +82,6 @@ function buildExtensions(tabId, rec, entry) {
       indentWithTab,
       ...defaultKeymap,
     ]),
-    rec.langComp.of([]),
     rec.readOnlyComp.of(entry.readOnly || entry.busy ? readonlyExtensions() : []),
     CM.updateListener.of((u) => {
       if (u.docChanged && !u.transactions.some((t) => t.annotation(External))) {
@@ -108,7 +110,14 @@ const pending = new Map()
 function ensureLayer(tabId) {
   if (layers.has(tabId)) return Promise.resolve(layers.get(tabId))
   if (pending.has(tabId)) return pending.get(tabId)
-  const p = createLayer(tabId).finally(() => pending.delete(tabId))
+  const p = createLayer(tabId)
+    .catch((err) => {
+      // 懒加载失败（如 chunk 请求断网）不应静默停在「正在打开编辑器…」
+      loadFailed.value = true
+      toast('编辑器加载失败：' + (err && err.message ? err.message : '未知错误'))
+      return null
+    })
+    .finally(() => pending.delete(tabId))
   pending.set(tabId, p)
   return p
 }
@@ -116,6 +125,7 @@ function ensureLayer(tabId) {
 async function createLayer(tabId) {
   const entry = state.editors.get(tabId)
   if (!entry) return null
+  loadFailed.value = false
 
   const el = document.createElement('div')
   el.className = 'absolute inset-0 overflow-hidden'
@@ -221,35 +231,29 @@ function disposeLayer(tabId) {
 const layerKeys = () =>
   [...state.editors.entries()].map(([id, e]) => id + ':' + e.relPath).join(',')
 
-watch(
-  layerKeys,
-  async () => {
-    const alive = new Set(state.editors.keys())
-    for (const [tabId, rec] of [...layers]) {
-      const e = state.editors.get(tabId)
-      if (!alive.has(tabId) || !e || e.relPath !== rec.relPath) disposeLayer(tabId)
-    }
-    if (state.view !== 'editor') return
-    const tabId = state.activeTabId
-    if (!alive.has(tabId)) return
-    const rec = await ensureLayer(tabId)
-    // 等待期间视图/标签可能又变了，只在仍应显示时展示
-    if (rec && state.view === 'editor' && state.activeTabId === tabId) showLayer(tabId)
-  },
-  { flush: 'post' },
-)
+/* 一次性同步入口：回收过期层 → 按需建层 → 显示当前层。
+ *
+ * 必须同时挂在 onMounted 与 watch 上：本组件由 App.vue 用
+ * v-if="state.editors.size > 0" 懒挂载，而 openEditor 在挂载前就已把
+ * state.view 置为 'editor' 并写入会话——只注册 watch 的话组件挂载后收不到
+ * 任何变更通知，层永远建不出来（界面停在「正在打开编辑器…」）。
+ */
+async function syncLayers() {
+  const alive = new Set(state.editors.keys())
+  for (const [tabId, rec] of [...layers]) {
+    const e = state.editors.get(tabId)
+    if (!alive.has(tabId) || !e || e.relPath !== rec.relPath) disposeLayer(tabId)
+  }
+  if (state.view !== 'editor') return
+  const tabId = state.activeTabId
+  if (!alive.has(tabId)) return
+  const rec = await ensureLayer(tabId)
+  // 等待期间视图/标签可能又变了，只在仍应显示时展示
+  if (rec && state.view === 'editor' && state.activeTabId === tabId) showLayer(tabId)
+}
 
-/* 视图 / 激活标签变化 → 建层 + 层叠显示 */
-watch(
-  () => [state.view, state.activeTabId],
-  async ([view, tabId]) => {
-    if (view !== 'editor') return
-    if (!state.editors.has(tabId)) return
-    const rec = await ensureLayer(tabId)
-    if (rec && state.view === 'editor' && state.activeTabId === tabId) showLayer(tabId)
-  },
-  { flush: 'post' },
-)
+// 懒挂载：onMounted 兜住首次同步，watch 负责后续变化（见 layersync.js 注释）
+installLayerSync({ onMounted, watch, keys: layerKeys, deps: () => [state.view, state.activeTabId], sync: syncLayers })
 
 /* 终端 busy 变化 → 编辑器只读锁定（服务端 write 亦兜底） */
 watch(busy, (on) => {
@@ -263,6 +267,12 @@ watch(
   () => current.value && current.value.readOnly,
   () => applyLock(state.activeTabId),
 )
+
+/* 加载失败后的重试：清掉失败标记后重新同步 */
+function retryLoad() {
+  loadFailed.value = false
+  syncLayers()
+}
 
 /* 焦点不在 CM 内（例如点了顶栏按钮）时 Ctrl+S 也要生效 */
 function onKeydown(ev) {
@@ -352,9 +362,21 @@ onUnmounted(() => {
     <div ref="layersEl" class="relative min-h-0 flex-1 overflow-hidden">
       <div
         v-if="layerCount === 0"
-        class="absolute inset-0 flex items-center justify-center text-sm text-on-surface-variant/70"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-sm text-on-surface-variant/70"
       >
-        正在打开编辑器…
+        <template v-if="loadFailed">
+          <Icon name="error" :size="40" />
+          <span>编辑器加载失败</span>
+          <button
+            class="state-layer flex h-9 items-center rounded-full bg-surface-3 px-4 text-[13px] text-on-surface"
+            @click="retryLoad"
+          >
+            重试
+          </button>
+        </template>
+        <template v-else>
+          <span>正在打开编辑器…</span>
+        </template>
       </div>
     </div>
   </main>
