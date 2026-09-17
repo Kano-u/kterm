@@ -100,7 +100,3 @@ cd frontend && npm test     # 纯 node 回归测试（无需浏览器/构建）
 ```
 
 `internal/fs` 为测试重点：Resolve 越界防护、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白。
-
-## 提交约定
-
-每个功能点完成即独立 commit，风格如 `M0: skeleton with list API and minimal UI`、`terminal: busy detection via OSC 133 and tab locking`。
