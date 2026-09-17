@@ -6,11 +6,22 @@
  */
 import { state, activeTab } from '../store.js'
 import { activeTerm, setView, isTermOpen, closeTerminal } from '../terminal.js'
+import { enterSettings, leaveSettings } from '../settingsnav.js'
 import { keyBarVisible } from '../keybar.js'
 import Icon from './Icon.vue'
 
 /* 按键栏已接管底部时隐藏任务栏 */
 const keyboardTakeover = keyBarVisible
+
+/* 设置页里点「文件/终端」：先退回该视图（会一次退掉设置页的历史记录） */
+async function goFiles() {
+  if (state.view === 'settings') await leaveSettings('files')
+  else setView('files')
+}
+async function goTerm() {
+  if (state.view === 'settings') await leaveSettings('term')
+  else setView('term')
+}
 
 /* 当前标签是否已打开终端（底部「终端」按钮显示 × 关闭入口） */
 function termOpen() {
@@ -39,7 +50,7 @@ function closeTerm(e) {
           ? 'bg-primary-container font-medium text-on-primary-container'
           : 'bg-surface-3 text-on-surface-variant'
       "
-      @click="setView('files')"
+      @click="goFiles"
     >
       <span class="material-symbols-outlined" style="font-size: 18px">folder</span>
       文件
@@ -57,7 +68,7 @@ function closeTerm(e) {
       role="button"
       tabindex="0"
       title="终端"
-      @click="setView('term')"
+      @click="goTerm"
     >
       <span class="material-symbols-outlined" style="font-size: 18px">terminal</span>
       终端
@@ -86,7 +97,7 @@ function closeTerm(e) {
           ? 'bg-primary-container font-medium text-on-primary-container'
           : 'bg-surface-3 text-on-surface-variant'
       "
-      @click="setView('settings')"
+      @click="enterSettings"
     >
       <Icon name="settings" :size="18" />
       设置

@@ -8,14 +8,9 @@
  *   ws: WebSocket | null,
  * }>
  */
-import { reactive, ref } from 'vue'
+import { reactive } from 'vue'
 import { state, activeTab } from './store.js'
 import { toast } from './toast.js'
-
-/* 按键栏（KeyboardBar）粘滞修饰键是否处于按下状态。
- * 处于按下状态时，即使软键盘收起也不收起按键栏，否则用户会失去取消修饰键的入口
- * （Taskbar 据它决定是否被按键栏顶替）。 */
-export const lockKeyBar = ref(false)
 
 /* 已提示过降级的 tab（cmd 等），避免每次重连重复 toast */
 const degradedNotified = new Set()
@@ -278,7 +273,6 @@ export function anyBusy() {
 /* 视图切换：进入终端视图时惰性建连 */
 export function setView(view) {
   state.view = view
-  lockKeyBar.value = false // 切视图时清掉粘滞修饰键状态
   if (view === 'term') {
     const tab = activeTab()
     const entry = state.terminals.get(tab.id)

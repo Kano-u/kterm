@@ -5,6 +5,7 @@ import {
 } from './store.js'
 import { confirm } from './confirm.js'
 import { sendCd, ensureUnlocked, ensureCloseable, removeTerm } from './terminal.js'
+import { isSettingsState, applySettingsState, exitSettings, canLeaveSettings, reopenSettingsPage, takeGuardPassed } from './settingsnav.js'
 
 /* 文件页导航成功后向该 tab 的终端注入 cd（T2 双向同步） */
 function syncTerminalCd(tab) {
@@ -44,9 +45,29 @@ export async function navigateTab(tab, path, opts = {}) {
 }
 
 /* Android 返回手势 / 浏览器后退：恢复对应 tab 的上一路径（前进由浏览器自身的历史栈承担，
- * 页面内不再提供前进/后退按钮） */
-export function onPopState(ev, restorePath) {
+ * 页面内不再提供前进/后退按钮）
+ *
+ * 设置子页有未保存改动时，返回手势已经生效（记录已出栈），因此这里用「先把记录压回去」
+ * 的方式撤销这次返回，等用户确认后再走一次 history.back()。 */
+export async function onPopState(ev, restorePath) {
   const s = ev.state
+  const incoming = isSettingsState(s) ? s.settings || '' : null
+  // 离开设置子页（回列表页或退出设置）前先过未保存守卫
+  // （页面内按钮触发的那次回退已经问过，用一次性标记跳过）
+  if (state.settingsPage && state.settingsPage !== incoming && !takeGuardPassed()) {
+    if (!(await canLeaveSettings())) {
+      reopenSettingsPage(state.settingsPage) // 撤销这次返回，停在子页
+      return
+    }
+  }
+  // 设置页记录：还原设置页层级（返回手势在设置列表页/子页之间回退）
+  if (incoming !== null) {
+    applySettingsState(s)
+    return
+  }
+  // 从设置页退回文件/终端记录：还原进入设置前的视图
+  if (state.view === 'settings') exitSettings()
+
   let tab = null
   if (s && s.tabId) tab = state.tabs.find((t) => t.id === s.tabId)
   if (!tab) tab = activeTab()
