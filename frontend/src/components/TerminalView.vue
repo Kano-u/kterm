@@ -2,7 +2,7 @@
 /* TerminalView：管理每个 tabId 的 xterm 实例（层叠 + v-show，切回时 refit）。
  * WebSocket 建连与消息分发在 terminal.js，本组件负责 xterm 与 DOM。
  */
-import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, watch, nextTick, onUnmounted } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -14,12 +14,33 @@ const layerCount = ref(0) // 用于空态提示的显隐
 /* tabId -> {el, term, fit, resizeObs} */
 const xs = new Map()
 
-const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
-
-function termTheme(dark) {
-  return dark
-    ? { background: '#1b1b1f', foreground: '#e3e2e6', cursor: '#e3e2e6' }
-    : { background: '#fef7ff', foreground: '#1d1b20', cursor: '#1d1b20' }
+/* 终端配色：固定深色，与 M3 dark 令牌一致（surface-1 = #2e2c36）。
+ * 不用 matchMedia：整体 UI 已固定深色，终端若跟随系统可能出现白底黑字。 */
+const TERM_THEME = {
+  background: '#2e2c36',
+  foreground: '#e6e0e9',
+  cursor: '#d0bcff',
+  cursorAccent: '#2e2c36',
+  selectionBackground: 'rgba(208, 188, 255, 0.28)',
+  scrollbarSliderBackground: 'rgba(202, 196, 208, 0.2)',
+  scrollbarSliderHoverBackground: 'rgba(202, 196, 208, 0.35)',
+  scrollbarSliderActiveBackground: 'rgba(202, 196, 208, 0.45)',
+  black: '#4a4654',
+  red: '#f2b8b5',
+  green: '#b6f0c0',
+  yellow: '#f5e0a3',
+  blue: '#a8c7fa',
+  magenta: '#e8b8e8',
+  cyan: '#a7e6ea',
+  white: '#e6e0e9',
+  brightBlack: '#7a7488',
+  brightRed: '#ffb4ab',
+  brightGreen: '#c8f7cf',
+  brightYellow: '#fff0b3',
+  brightBlue: '#c2d7ff',
+  brightMagenta: '#f5c8f5',
+  brightCyan: '#bdf0f3',
+  brightWhite: '#ffffff',
 }
 
 function createXterm(tabId) {
@@ -33,7 +54,7 @@ function createXterm(tabId) {
     fontSize: 13,
     cursorBlink: true,
     allowProposedApi: true,
-    theme: termTheme(darkMq.matches),
+    theme: TERM_THEME,
   })
   const fit = new FitAddon()
   term.loadAddon(fit)
@@ -120,14 +141,8 @@ watch(
   { flush: 'post' },
 )
 
-/* 暗色模式切换即时生效 */
-function applyTheme() {
-  const theme = termTheme(darkMq.matches)
-  for (const x of xs.values()) x.term.options.theme = theme
-}
-onMounted(() => darkMq.addEventListener('change', applyTheme))
+/* 固定深色主题，无需监听系统明暗变化（onUnmounted 仅供 xterm 清理）。 */
 onUnmounted(() => {
-  darkMq.removeEventListener('change', applyTheme)
   for (const tabId of [...xs.keys()]) disposeXterm(tabId)
 })
 </script>

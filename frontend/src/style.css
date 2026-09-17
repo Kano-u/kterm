@@ -2,72 +2,48 @@
 @import '@fontsource-variable/roboto';
 @import 'material-symbols/outlined.css';
 
-/* Tailwind v4 暗色模式：<html class="dark"> */
-@custom-variant dark (&:where(.dark, .dark *));
-
-/* ---------- Material Design 3 主题令牌 ---------- */
+/* ---------- Material Design 3 主题令牌 ----------
+ * 本项目固定使用 M3 baseline（紫色）深色主题：终端长时间阅览更护眼，
+ * 也让 xterm 与整体 UI 明暗一致；无浅色主题、不跟随系统。
+ * surface 族在 M3 dark 基础上整体提亮一档（“柔和深色”），避免纯黑感。
+ */
 @theme {
-  /* M3 baseline（紫色）light */
-  --color-primary: #6750a4;
-  --color-on-primary: #ffffff;
-  --color-primary-container: #eaddff;
-  --color-on-primary-container: #21005d;
-  --color-secondary-container: #e8def8;
-  --color-on-secondary-container: #1d192b;
-  --color-tertiary: #7d5260;
-  --color-error: #b3261e;
-  --color-on-error: #ffffff;
-  --color-error-container: #f9dedc;
-  --color-on-error-container: #410e0b;
-  --color-surface: #fef7ff;
-  --color-surface-dim: #ded8e1;
-  --color-surface-1: #f7f2fa;
-  --color-surface-2: #f3edf7;
-  --color-surface-3: #ece6f0;
-  --color-on-surface: #1d1b20;
-  --color-on-surface-variant: #49454f;
-  --color-outline: #79747e;
-  --color-outline-variant: #cac4d0;
-  --color-inverse-surface: #322f35;
-  --color-inverse-on-surface: #f5eff7;
+  --color-primary: #d0bcff;
+  --color-on-primary: #381e72;
+  --color-primary-container: #57409c;
+  --color-on-primary-container: #eaddff;
+  --color-secondary-container: #524c62;
+  --color-on-secondary-container: #e8def8;
+  --color-tertiary: #efb8c8;
+  --color-tertiary-container: #6d4457;
+  --color-on-tertiary-container: #ffd8e4;
+  --color-error: #f2b8b5;
+  --color-on-error: #601410;
+  --color-error-container: #99231d;
+  --color-on-error-container: #f9dedc;
+  --color-surface: #26242c;
+  --color-surface-dim: #201e26;
+  --color-surface-1: #2e2c36;
+  --color-surface-2: #34323d;
+  --color-surface-3: #3b3945;
+  --color-on-surface: #e6e0e9;
+  --color-on-surface-variant: #cac4d0;
+  --color-outline: #938f99;
+  --color-outline-variant: #5b5666;
+  --color-inverse-surface: #e6e0e9;
+  --color-inverse-on-surface: #322f35;
 
   --font-sans: 'Roboto Variable', 'Roboto', 'Noto Sans SC', system-ui, sans-serif;
 
   --radius-m3: 28px;
 }
 
-/* M3 baseline（紫色）dark */
-@layer theme {
-  .dark {
-    --color-primary: #d0bcff;
-    --color-on-primary: #381e72;
-    --color-primary-container: #4f378b;
-    --color-on-primary-container: #eaddff;
-    --color-secondary-container: #4a4458;
-    --color-on-secondary-container: #e8def8;
-    --color-tertiary: #efb8c8;
-    --color-error: #f2b8b5;
-    --color-on-error: #601410;
-    --color-error-container: #8c1d18;
-    --color-on-error-container: #f9dedc;
-    --color-surface: #141218;
-    --color-surface-dim: #141218;
-    --color-surface-1: #1d1b20;
-    --color-surface-2: #211f26;
-    --color-surface-3: #25232a;
-    --color-on-surface: #e6e0e9;
-    --color-on-surface-variant: #cac4d0;
-    --color-outline: #938f99;
-    --color-outline-variant: #49454f;
-    --color-inverse-surface: #e6e0e9;
-    --color-inverse-on-surface: #322f35;
-  }
-}
-
 /* ---------- 全局基础 ---------- */
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* 原生控件 / 滚动条也走深色（搜索框的清除按钮、终端滚动条等） */
+    color-scheme: dark;
   }
   body {
     @apply bg-surface-1 text-on-surface font-sans antialiased select-none;

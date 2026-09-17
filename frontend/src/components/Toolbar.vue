@@ -96,7 +96,7 @@ function cancelSearch() {
           v-model="searchQuery"
           type="search"
           placeholder="搜索当前目录（含子目录）…"
-          class="h-12 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 dark:[&::-webkit-search-cancel-button]:hidden"
+          class="h-12 min-w-0 flex-1 rounded-full bg-surface-3 px-4 text-sm text-on-surface caret-primary outline-none placeholder:text-on-surface-variant/70 [&::-webkit-search-cancel-button]:hidden"
         >
         <button
           class="state-layer flex h-12 flex-none items-center rounded-full px-4 text-sm text-primary"
@@ -128,7 +128,7 @@ function cancelSearch() {
     <!-- ⋯ 菜单（M3 菜单容器） -->
     <div
       v-if="menu"
-      class="absolute right-2 z-40 w-52 origin-top-right rounded-xl bg-surface-2 py-2 shadow-[0_3px_10px_rgba(0,0,0,0.2),0_6px_24px_rgba(0,0,0,0.12)] m3-pop dark:shadow-[0_3px_10px_rgba(0,0,0,0.5)]"
+      class="absolute right-2 z-40 w-52 origin-top-right rounded-xl bg-surface-2 py-2 shadow-[0_3px_10px_rgba(0,0,0,0.5)] m3-pop"
       style="top: calc(env(safe-area-inset-top) + 60px + 40px)"
     >
       <button

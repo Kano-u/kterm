@@ -163,7 +163,7 @@ function hitSub(hit) {
       class="ripple state-layer flex min-h-16 cursor-pointer items-center gap-4 border-b border-outline-variant/25 px-4 select-none transition-colors"
       :class="
         state.multi.active && state.multi.sel.has(e.name)
-          ? 'bg-secondary-container/60 dark:bg-secondary-container/40'
+          ? 'bg-secondary-container/40'
           : 'bg-surface-1'
       "
       @click="onClickRow(e)"

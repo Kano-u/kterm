@@ -18,16 +18,14 @@ import { loadState, validateRestoredTabs, activeTab, state } from './store.js'
 import { apiList } from './api.js'
 import { onPopState, restorePath } from './actions.js'
 
-/* 深色模式：跟随系统 prefers-color-scheme */
-const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
-const applyDark = () => document.documentElement.classList.toggle('dark', darkMq.matches)
-applyDark()
-onMounted(() => darkMq.addEventListener('change', applyDark))
-onUnmounted(() => darkMq.removeEventListener('change', applyDark))
+/* 主题：固定深色（M3 baseline dark），不再跟随系统 prefers-color-scheme。
+ * <html class="dark"> 已在 index.html 静态标注（避免首屏白闪），这里再兜底一次；
+ * 色值令牌见 style.css，终端配色见 components/TerminalView.vue。 */
+document.documentElement.classList.add('dark')
 
 function fatal(msg) {
   document.getElementById('app').innerHTML =
-    `<div style="padding:48px 24px;text-align:center;color:#49454f">加载失败: ${msg}</div>`
+    `<div style="padding:48px 24px;text-align:center;color:#cac4d0">加载失败: ${msg}</div>`
 }
 
 function onPop(ev) {

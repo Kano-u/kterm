@@ -5,7 +5,7 @@ import { loading } from '../loading.js'
 <template>
   <div
     v-if="loading.count > 0"
-    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/20"
+    class="fixed inset-0 z-[60] flex items-center justify-center bg-black/30"
   >
     <!-- M3 圆形进度指示器（激活态主色） -->
     <div
