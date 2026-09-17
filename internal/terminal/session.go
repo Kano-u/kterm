@@ -21,7 +21,7 @@ import (
 // → 三个 goroutine（pty→ws 输出泵 / ws→pty 输入泵 / 退出监听）
 // → WS 断开或 shell 退出时杀进程并从 manager 移除。
 //
-// WS 协议（见 PLAN-terminal.md）：
+// WS 协议（另见 AGENTS.md「终端 WebSocket」）：
 //
 //	C→S text  {"t":"i","d":"<键入>"}              写入 PTY stdin（含回车 → busy）
 //	C→S text  {"t":"resize","cols":N,"rows":N}

@@ -7,7 +7,7 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
 - 服务端只做「真实文件系统操作 + 路径安全」；一切纯展示逻辑（排序、隐藏过滤、防抖、状态管理）在前端。
 - 访问范围仅限程序启动时的当前工作目录（root），不可越界；终端内可自由 cd 出 root，但文件页不跟随（见终端条目）。
 - 仅监听 `127.0.0.1`；Host 头校验中间件防 DNS rebinding（对终端 WebSocket 同样生效）。
-- 每个文件标签页可绑定一个独立 PTY 终端（xterm.js + WebSocket），见 `PLAN-terminal.md`。
+- 每个文件标签页可绑定一个独立 PTY 终端（xterm.js + WebSocket）：惰性创建、双向目录同步、运行中锁定该标签。
 
 ## 目录结构
 
@@ -54,9 +54,10 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 
 ### 终端 WebSocket（/api/term/ws）
 
-- 受 hostCheck 保护；参数与协议详见 `PLAN-terminal.md`。
+- 受 hostCheck 保护；查询参数 `tab=<tabId>&path=<相对 root 初始工作目录>`。
 - C→S（text JSON）：`{"t":"i","d":"<键入>"}`、`{"t":"resize","cols":N,"rows":N}`、`{"t":"cd","rel":"a/b"}`；
-- S→C：binary（PTY 原始输出）与 text JSON `{"t":"cwd"|"busy"|"exit",...}`。
+- S→C：binary（PTY 原始输出，经 OSC 旁路扫描但不吞字节）与 text JSON `{"t":"shell"|"cwd"|"busy"|"exit"|"error",...}`。
+- 生命周期：WS 断开（含刷新）或 shell 退出即杀死 PTY 并从注册表移除；同一 tabId 二次连接被拒绝（提示「该标签的终端已被其他窗口占用」）。
 
 ## 核心设计决策
 
@@ -80,8 +81,8 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 go test ./...
 ```
 
-`internal/fs` 为测试重点：Resolve 越界防护、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）与 shell 探测（T2/T5 补全）。
+`internal/fs` 为测试重点：Resolve 越界防护、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。
 
-## 任务与里程碑
+## 提交约定
 
-开发按 `tasks.md` 的里程碑顺序推进，每个里程碑完成即独立 commit（风格如 `M0: skeleton with list API and minimal UI`）。总体计划见 `PLAN.md`，终端功能见 `PLAN-terminal.md`（T0–T5）。
+每个功能点完成即独立 commit，风格如 `M0: skeleton with list API and minimal UI`、`terminal: busy detection via OSC 133 and tab locking`。
