@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"kfm/internal/terminal"
 )
 
 //go:embed all:web
@@ -28,6 +30,7 @@ func New(port int, allowLAN bool) http.Handler {
 	mux.HandleFunc("GET /api/trash", handleTrashList)
 	mux.HandleFunc("POST /api/trash/restore", handleTrashRestore)
 	mux.HandleFunc("POST /api/trash/purge", handleTrashPurge)
+	mux.HandleFunc("GET /api/term/ws", terminal.HandleWS(terminal.DefaultManager))
 
 	// 静态资源
 	sub, _ := fs.Sub(webFS, "web")

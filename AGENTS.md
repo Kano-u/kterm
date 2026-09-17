@@ -5,8 +5,9 @@
 kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）+ Vue 3 / Tailwind CSS 前端（Vite 构建，产物 `go:embed` 内嵌），部署形态为单文件二进制。
 
 - 服务端只做「真实文件系统操作 + 路径安全」；一切纯展示逻辑（排序、隐藏过滤、防抖、状态管理）在前端。
-- 访问范围仅限程序启动时的当前工作目录（root），不可越界。
-- 仅监听 `127.0.0.1`；Host 头校验中间件防 DNS rebinding。
+- 访问范围仅限程序启动时的当前工作目录（root），不可越界；终端内可自由 cd 出 root，但文件页不跟随（见终端条目）。
+- 仅监听 `127.0.0.1`；Host 头校验中间件防 DNS rebinding（对终端 WebSocket 同样生效）。
+- 每个文件标签页可绑定一个独立 PTY 终端（xterm.js + WebSocket），见 `PLAN-terminal.md`。
 
 ## 目录结构
 
@@ -15,6 +16,9 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
 ├── internal/
 │   ├── fs/                 # root 固化与路径安全、目录列表、
 │   │                       # mkdir/create/rename、copy/move、回收站、搜索
+│   ├── terminal/           # 终端：WS 端点（ws.go，T0 为 echo 自测）、
+│   │                       # 会话注册表 manager.go、PTY 会话 session.go、
+│   │                       # OSC 旁路解析 osc.go、shell 探测 shell.go
 │   └── server/
        ├── server.go        # 路由、Host 校验、静态资源
        ├── handlers.go      # JSON 端点
@@ -28,6 +32,7 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
         ├── dialog.js / confirm.js / toast.js / loading.js
         └── components/      # Tabbar/Toolbar/Sortbar/FileList/SelectBar/PasteBar/
                             # NavBtns/Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
+                            # （T1 起新增 Taskbar/TerminalView）
 ```
 
 ## 构建与运行
@@ -45,7 +50,13 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 
 所有 `path` 参数均为相对 root 的相对路径（`/` 分隔）。成功返回 `{"ok":true}` 或具体数据；失败返回 4xx/5xx + `{"error":"中文错误消息"}`。
 
-端点：`GET /api/list`、`GET /api/search`、`POST /api/mkdir`、`/api/create`、`/api/rename`、`/api/copy`、`/api/move`、`/api/delete`（`mode:"trash"|"permanent"`）、`GET /api/trash`、`POST /api/trash/restore`、`/api/trash/purge`。
+端点：`GET /api/list`、`GET /api/search`、`POST /api/mkdir`、`/api/create`、`/api/rename`、`/api/copy`、`/api/move`、`/api/delete`（`mode:"trash"|"permanent"`）、`GET /api/trash`、`POST /api/trash/restore`、`/api/trash/purge`、`GET /api/term/ws`（终端 WebSocket，见下）。
+
+### 终端 WebSocket（/api/term/ws）
+
+- 受 hostCheck 保护；参数与协议详见 `PLAN-terminal.md`。
+- C→S（text JSON）：`{"t":"i","d":"<键入>"}`、`{"t":"resize","cols":N,"rows":N}`、`{"t":"cd","rel":"a/b"}`；
+- S→C：binary（PTY 原始输出）与 text JSON `{"t":"cwd"|"busy"|"exit",...}`。
 
 ## 核心设计决策
 
@@ -58,8 +69,8 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 
 ## 编码约定
 
-- Go：仅标准库（`os.CopyFS` 需 Go 1.23+），不用第三方依赖。
-- 前端：Vue 3 `<script setup>` 组合式 API；样式用 Tailwind 原子类，无独立组件 CSS。
+- **Go**：除 PTY（`github.com/aymanbagabas/go-pty`）与 WebSocket（`github.com/coder/websocket`）外仅标准库（`os.CopyFS` 需 Go 1.23+）。
+- **前端**：终端引入 `@xterm/xterm` + `@xterm/addon-fit`，其余不新增依赖；Vue 3 `<script setup>` 组合式 API；样式用 Tailwind 原子类，无独立组件 CSS。
 - 错误消息、UI 文案全部中文。
 - 不做：文件预览/编辑、压缩解压、上传下载、局域网访问、多语言。
 
@@ -69,8 +80,8 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 go test ./...
 ```
 
-`internal/fs` 为测试重点：Resolve 越界防护、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配。
+`internal/fs` 为测试重点：Resolve 越界防护、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）与 shell 探测（T2/T5 补全）。
 
 ## 任务与里程碑
 
-开发按 `tasks.md` 的 M0–M7 里程碑顺序推进，每个里程碑完成即独立 commit（风格如 `M0: skeleton with list API and minimal UI`）。总体计划见 `PLAN.md`。
+开发按 `tasks.md` 的里程碑顺序推进，每个里程碑完成即独立 commit（风格如 `M0: skeleton with list API and minimal UI`）。总体计划见 `PLAN.md`，终端功能见 `PLAN-terminal.md`（T0–T5）。
