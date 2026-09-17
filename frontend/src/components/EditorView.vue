@@ -16,7 +16,7 @@ import {
   crosshairCursor,
 } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
-import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search'
 import { indentOnInput, bracketMatching, foldGutter, foldKeymap } from '@codemirror/language'
 
 import { state } from '../store.js'
@@ -71,6 +71,8 @@ function buildExtensions(tabId, rec, entry) {
     keymap.of([
       // Ctrl+S 保存（preventDefault 阻止浏览器默认的「保存网页」）
       { key: 'Mod-s', preventDefault: true, run: () => { saveEditor(tabId); return true } },
+      // Ctrl+F / Ctrl+H 都打开搜索面板（CM6 面板自带替换输入与「全部替换」）
+      { key: 'Mod-h', preventDefault: true, run: openSearchPanel },
       ...searchKeymap,
       ...historyKeymap,
       ...foldKeymap,
