@@ -13,6 +13,10 @@ import { toast } from './toast.js'
 export const MAX_ROWS = 8
 export const MAX_PER_ROW = 24
 export const MAX_KEY_LEN = 24
+export const MAX_STARTUP_LEN = 512
+
+/* 启动命令模板中的服务地址占位符（与服务端 fs.URLPlaceholder 一致） */
+export const URL_PLACEHOLDER = '{url}'
 
 /* ---------- 默认设置：两行移动端终端常用键 ---------- */
 
@@ -27,6 +31,7 @@ export const DEFAULT_KEY_TEXT = JSON.stringify(DEFAULT_KEYS, null, 2)
 export const settings = reactive({
   keys: DEFAULT_KEYS.map((r) => r.slice()),
   keyBarEnabled: true, // 键盘增强总开关（设置页中的折叠项）
+  startupCommand: '', // 启动命令模板（空 = 启动时不执行任何东西）
   loaded: false,
 })
 
@@ -39,6 +44,7 @@ export function applySettings(s) {
     settings.keys = s.keys.map((row) => (Array.isArray(row) ? row.map(String) : []))
   }
   settings.keyBarEnabled = s.keyBarEnabled !== false
+  settings.startupCommand = typeof s.startupCommand === 'string' ? s.startupCommand : ''
 }
 
 /* 启动时拉取设置：任何失败都退回内置默认，不阻塞主流程 */
@@ -54,14 +60,86 @@ export async function loadSettings() {
   }
 }
 
-/* 保存设置：服务端校验通过后回落盘结果，并即时生效（终端无需重连） */
+/* 保存设置：服务端校验通过后回落盘结果，并即时生效（终端无需重连）。
+ *
+ * 「部分更新」语义由这里保证：未提供的字段取当前生效值，
+ * 因此单独保存键盘页不会把启动命令清空（服务端整包覆盖）。 */
 export async function saveSettings(next) {
-  const res = await apiOp('/api/settings', {
-    keys: next.keys,
-    keyBarEnabled: next.keyBarEnabled !== false,
-  })
+  const body = {
+    keys: next.keys ?? settings.keys,
+    keyBarEnabled: (next.keyBarEnabled ?? settings.keyBarEnabled) !== false,
+    startupCommand: next.startupCommand ?? settings.startupCommand,
+  }
+  const res = await apiOp('/api/settings', body)
   applySettings(res.settings)
   return settings
+}
+
+/* ========== 启动命令（启动时自动执行，例如 termux-open-url） ==========
+ *
+ * 模板按空白拆分为 argv，支持单/双引号包裹含空格的参数；
+ * 其中的 {url} 替换为服务地址，没有 {url} 时把地址追加到末尾。
+ * 命令不经过 shell，因此管道/重定向等元字符不会被解释。 */
+
+/* 解析结果：{argv} 或 {error}（中文提示）。空模板 → {argv: []} */
+export function parseStartupCommand(text, url = 'http://127.0.0.1:8080') {
+  const src = String(text ?? '').trim()
+  if (!src) return { argv: [] }
+  if ([...src].length > MAX_STARTUP_LEN) {
+    return { error: `启动命令过长（最多 ${MAX_STARTUP_LEN} 字）` }
+  }
+  if (/[\r\n\0]/.test(src)) return { error: '启动命令不能包含换行' }
+
+  const argv = []
+  let cur = ''
+  let started = false
+  let inSingle = false
+  let inDouble = false
+  const flush = () => {
+    if (!started) return
+    argv.push(cur)
+    cur = ''
+    started = false
+  }
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
+    if (inSingle) {
+      if (c === "'") inSingle = false
+      else cur += c
+      continue
+    }
+    if (inDouble) {
+      if (c === '"') inDouble = false
+      else if (c === '\\' && (src[i + 1] === '"' || src[i + 1] === '\\')) cur += src[++i]
+      else cur += c
+      continue
+    }
+    if (c === "'") { inSingle = true; started = true; continue }
+    if (c === '"') { inDouble = true; started = true; continue }
+    if (c === ' ' || c === '\t') { flush(); continue }
+    cur += c
+    started = true
+  }
+  if (inSingle || inDouble) return { error: '启动命令的引号没有闭合' }
+  flush()
+  if (!argv.length || argv[0] === '') return { error: '启动命令为空' }
+
+  let hasPlaceholder = false
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i].includes(URL_PLACEHOLDER)) {
+      hasPlaceholder = true
+      argv[i] = argv[i].split(URL_PLACEHOLDER).join(url)
+    }
+  }
+  if (!hasPlaceholder && url) argv.push(url)
+  return { argv }
+}
+
+/* argv → 展示文本（预览用；含空格/引号的参数加引号） */
+export function argvToText(argv) {
+  return (argv || [])
+    .map((a) => (/[\s'"]/.test(a) ? '"' + a.replace(/(["\\])/g, '\\$1') + '"' : a))
+    .join(' ')
 }
 
 /* ========== 按键名 → 字节序列 ========== */

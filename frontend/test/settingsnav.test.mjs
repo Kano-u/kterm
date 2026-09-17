@@ -78,6 +78,16 @@ hist.back(); await new Promise((r) => setTimeout(r, 0))
 hist.back(); await new Promise((r) => setTimeout(r, 0))
 assert(state.view === 'term', at('返回后回到终端视图'))
 
+// 5b) 第二个设置子页（启动命令）同样支持逐级返回
+state.view = 'files'
+nav.enterSettings()
+nav.openSettingsPage('startup')
+assert(state.settingsPage === 'startup', at('打开启动命令子页'))
+hist.back(); await new Promise((r) => setTimeout(r, 0))
+assert(state.view === 'settings' && state.settingsPage === '', at('启动命令子页 → 列表页'))
+hist.back(); await new Promise((r) => setTimeout(r, 0))
+assert(state.view === 'files', at('列表页 → 文件视图'))
+
 // 6) 底部直接切走：一次退掉所有设置页记录
 nav.enterSettings()
 nav.openSettingsPage('keyboard')
@@ -116,9 +126,9 @@ state.view = 'term'
 hist.stack = [{ tabId: 1, path: '' }]
 hist.i = 0
 nav.enterSettings()
-nav.openSettingsPage('keyboard')
+nav.openSettingsPage('startup')
 nav.restoreSettingsState(hist.state) // 刷新：同一记录 replaceState 写回
-assert(state.view === 'settings' && state.settingsPage === 'keyboard', at('刷新还原到子页'))
+assert(state.view === 'settings' && state.settingsPage === 'startup', at('刷新还原到启动命令子页'))
 await settle(1)
 assert(state.view === 'settings' && state.settingsPage === '', at('刷新后返回 → 列表页'))
 await settle(1)

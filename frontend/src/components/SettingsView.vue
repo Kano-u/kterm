@@ -29,6 +29,21 @@ import Icon from './Icon.vue'
           <Icon name="chevron_right" :size="20" class="flex-none text-on-surface-variant" />
         </button>
       </li>
+      <li>
+        <button
+          class="state-layer flex w-full items-center gap-3 rounded-2xl bg-surface-2 px-3 py-3 text-left"
+          @click="openSettingsPage('startup')"
+        >
+          <Icon name="rocket_launch" :size="22" class="flex-none text-primary" />
+          <span class="min-w-0 flex-1">
+            <span class="block truncate text-[15px] text-on-surface">启动命令</span>
+            <span class="mt-0.5 block truncate text-[11px] text-on-surface-variant">
+              {{ settings.startupCommand ? settings.startupCommand : '未设置 · 启动时不执行命令' }}
+            </span>
+          </span>
+          <Icon name="chevron_right" :size="20" class="flex-none text-on-surface-variant" />
+        </button>
+      </li>
     </ul>
 
     <p class="px-4 py-3 text-[11px] leading-relaxed text-on-surface-variant/70">

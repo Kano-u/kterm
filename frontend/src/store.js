@@ -32,7 +32,7 @@ export const state = reactive({
   multi: { active: false, sel: new Set() }, // 多选（仅当前 tab，切换/导航时重置）
   search: { active: false, query: '', results: null, truncated: false, busy: false }, // 搜索（不持久化）
   view: 'files', // 底部任务栏视图：'files' | 'term' | 'editor' | 'settings'（不持久化）
-  settingsPage: '', // 设置页内的子页：'' = 设置列表 | 'keyboard'（不持久化）
+  settingsPage: '', // 设置页内的子页：'' = 设置列表 | 'keyboard' | 'startup'（不持久化）
   keyboardBar: false, // 软键盘是否弹出（viewport.js 维护，不持久化）
   keyboardInset: 0, // 被软键盘遮挡的高度（px）
   terminals: new Map(), // tabId -> {status,busy,degraded,ws}（不持久化，见 terminal.js）

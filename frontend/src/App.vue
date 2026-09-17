@@ -8,6 +8,7 @@ import TerminalView from './components/TerminalView.vue'
 import KeyboardBar from './components/KeyboardBar.vue'
 import SettingsView from './components/SettingsView.vue'
 import KeyboardSettings from './components/KeyboardSettings.vue'
+import StartupSettings from './components/StartupSettings.vue'
 import SelectBar from './components/SelectBar.vue'
 import PasteBar from './components/PasteBar.vue'
 import Toast from './components/Toast.vue'
@@ -134,7 +135,8 @@ onUnmounted(() => {
 
     <!-- 设置：列表页 + 各设置项的独立子页 -->
     <SettingsView v-if="state.view === 'settings' && !state.settingsPage" />
-    <KeyboardSettings v-else-if="state.view === 'settings'" />
+    <KeyboardSettings v-else-if="state.view === 'settings' && state.settingsPage === 'keyboard'" />
+    <StartupSettings v-else-if="state.view === 'settings' && state.settingsPage === 'startup'" />
 
     <!-- 底部固定栏（多选与粘贴互斥显示，仅文件视图） -->
     <template v-if="state.view === 'files'">

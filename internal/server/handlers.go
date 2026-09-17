@@ -61,6 +61,9 @@ func init() {
 // RootDir 供 main 打印/使用。
 func RootDir() string { return root.Dir() }
 
+// Root 返回起始目录的 fs.Root，供 main 读取用户设置（启动命令）使用。
+func Root() *fs.Root { return root }
+
 func handleList(w http.ResponseWriter, r *http.Request) {
 	rel := fs.DisplayPath(r.URL.Query().Get("path"))
 	entries, err := root.List(rel)

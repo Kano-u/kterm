@@ -232,3 +232,115 @@ func TestReservedNamesHiddenFromListAndSearch(t *testing.T) {
 		t.Fatalf("搜索应只命中普通文件，实际: %+v", res.Hits)
 	}
 }
+
+/* ---------- 启动命令（startupCommand） ---------- */
+
+func TestStartupCommandRoundTrip(t *testing.T) {
+	r := newSettingsTestRoot(t)
+	in := DefaultSettings()
+	in.StartupCommand = "termux-open-url {url}"
+	if err := r.SaveSettings(in); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+	load := r.LoadSettings()
+	if !load.FromFile || load.Warning != "" {
+		t.Fatalf("读回失败: %+v", load)
+	}
+	if load.Settings.StartupCommand != "termux-open-url {url}" {
+		t.Fatalf("启动命令读回不对: %q", load.Settings.StartupCommand)
+	}
+	raw, err := os.ReadFile(filepath.Join(r.dir, SettingsFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"startupCommand"`) {
+		t.Fatalf("落盘应包含 startupCommand 字段: %s", raw)
+	}
+}
+
+// 旧设置文件（没有 startupCommand 字段）读成空字符串（= 不自动打开），不报错。
+func TestStartupCommandDefaultsToEmpty(t *testing.T) {
+	r := newSettingsTestRoot(t)
+	if err := os.WriteFile(filepath.Join(r.dir, SettingsFileName), []byte(`{"keys":[["ESC"]]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	load := r.LoadSettings()
+	if load.Warning != "" {
+		t.Fatalf("不应有 warning: %s", load.Warning)
+	}
+	if load.Settings.StartupCommand != "" {
+		t.Fatalf("缺字段应读成空: %q", load.Settings.StartupCommand)
+	}
+	if DefaultSettings().StartupCommand != "" {
+		t.Fatal("内置默认启动命令应为空")
+	}
+}
+
+// Normalize 去掉首尾空白（用户粘贴时常见的多余空格）。
+func TestStartupCommandNormalized(t *testing.T) {
+	r := newSettingsTestRoot(t)
+	in := DefaultSettings()
+	in.StartupCommand = "  termux-open-url {url}  "
+	if err := r.SaveSettings(in); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.LoadSettings().Settings.StartupCommand; got != "termux-open-url {url}" {
+		t.Fatalf("首尾空白应被去掉: %q", got)
+	}
+}
+
+func TestSaveSettingsRejectsBadStartupCommand(t *testing.T) {
+	r := newSettingsTestRoot(t)
+	base := DefaultSettings()
+	cases := []struct {
+		name string
+		cmd  string
+	}{
+		{"过长", strings.Repeat("x", SettingsMaxStartupLen+1)},
+		{"含换行", "termux-open-url {url}\nrm -rf /"},
+	}
+	for _, c := range cases {
+		s := base
+		s.StartupCommand = c.cmd
+		if err := r.SaveSettings(s); err == nil {
+			t.Fatalf("%s: 期望报错", c.name)
+		}
+		if _, err := os.Stat(filepath.Join(r.dir, SettingsFileName)); !os.IsNotExist(err) {
+			t.Fatalf("%s: 校验失败不应写盘", c.name)
+		}
+	}
+}
+
+func TestStartupArgv(t *testing.T) {
+	const url = "http://127.0.0.1:8080"
+	cases := []struct {
+		name string
+		tmpl string
+		want []string
+	}{
+		{"空模板不执行", "", nil},
+		{"纯空白不执行", "   \t ", nil},
+		{"占位符替换", "termux-open-url {url}", []string{"termux-open-url", url}},
+		{"无占位符则追加地址", "xdg-open", []string{"xdg-open", url}},
+		{"多余空白折叠", "  open   {url}  ", []string{"open", url}},
+		{"双引号含空格", `sh -c "echo {url}"`, []string{"sh", "-c", "echo " + url}},
+		{"单引号含空格", `my-open '--title=My Page' {url}`, []string{"my-open", "--title=My Page", url}},
+		{"双引号内转义", `say "a\"b" {url}`, []string{"say", `a"b`, url}},
+		{"地址出现在中间", "cmd {url} --flag", []string{"cmd", url, "--flag"}},
+	}
+	for _, c := range cases {
+		got, err := StartupArgv(c.tmpl, url)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if strings.Join(got, "\x00") != strings.Join(c.want, "\x00") {
+			t.Fatalf("%s: argv 应为 %q，实际 %q", c.name, c.want, got)
+		}
+	}
+}
+
+func TestStartupArgvRejectsUnclosedQuote(t *testing.T) {
+	if _, err := StartupArgv(`open "unterminated`, "http://x"); err == nil {
+		t.Fatal("引号未闭合应报错")
+	}
+}

@@ -16,12 +16,13 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
 ## 目录结构
 
 ```
-├── main.go                 # flag 解析、启动服务、自动开浏览器
+├── main.go                 # flag 解析、启动服务、执行用户设置的启动命令
 ├── internal/
 │   ├── fs/                 # 起始目录固化与路径解析（root.go：相对/绝对路径 → 绝对路径）、
 │   │                       # 展示路径规范化（display.go）、目录列表、
 │   │                       # mkdir/create/rename、copy/move、回收站、搜索、
-│   │                       # 编辑器读写（edit.go：大小/二进制/mtime 冲突）
+│   │                       # 编辑器读写（edit.go：大小/二进制/mtime 冲突）、
+│   │                       # 用户设置与启动命令解析（settings.go：StartupArgv）
 │   ├── terminal/           # 终端：WS 端点（ws.go，T0 为 echo 自测）、
 │   │                       # 会话注册表 manager.go、PTY 会话 session.go、
 │   │                       # OSC 旁路解析 osc.go、shell 探测 shell.go
@@ -31,17 +32,20 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
        └── web/             # 前端构建产物（go:embed，勿手改；由 `npm run build` 生成）
 └── frontend/               # Vue 3 + Tailwind + Vite 源码
     ├── vite.config.js      # outDir 指向 ../internal/server/web，dev 代理 /api
-    ├── test/               # 纯 node 回归测试（settingsnav/editor/touchscroll/termgutter/paths）
+    ├── test/               # 纯 node 回归测试（settingsnav/startup/editor/touchscroll/termgutter/paths）
     └── src/
         ├── store.js        # 单一 reactive 状态（tabs/sort/clipboard/selection/editors）
         ├── actions.js      # 导航/标签/操作/剪贴板动作
         ├── api.js          # fetch 封装
         ├── editor.js       # 编辑器会话注册表（镜像 terminal.js）
         ├── editor-lang.js  # 扩展名 → 语言包映射 + 自写 M3 深色 CM 主题
+        ├── settings.js     # 用户设置缓存 + 启动命令解析（parseStartupCommand）
+        ├── settingsnav.js  # 设置页两级导航（列表页 ↔ 子页）与未保存守卫
         ├── dialog.js / confirm.js / toast.js / loading.js
         └── components/      # Tabbar/Toolbar（含排序行）/FileList/SelectBar/PasteBar/
                             # Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
-                            # （T1 起新增 Taskbar/TerminalView，E2 起新增 EditorView）
+                            # （T1 起新增 Taskbar/TerminalView，E2 起新增 EditorView，
+                            #  设置页新增 SettingsView/KeyboardSettings/StartupSettings）
 ```
 
 ## 构建与运行
@@ -53,6 +57,12 @@ cd frontend && npm install && npm run build
 # 构建并运行（在想要作为 root 的目录里执行）
 go build . && ./kfm              # 默认 127.0.0.1:8080
 ./kfm -addr 127.0.0.1:9000
+```
+
+启动时是否自动打开浏览器由**用户设置**（不是命令行开关、也不是编译进程序的平台默认值）决定：
+在设置页「启动命令」里填写命令模板（默认留空），例如 Termux 下填 `termux-open-url {url}`，
+kfm 启动后按模板执行，`{url}` 替换为实际服务地址（模板中没有 `{url}` 时地址追加到末尾）。
+命令按空白拆分为 argv（支持单/双引号），不经过 shell，因此管道与重定向不会被解释。
 
 ## API 约定
 
@@ -62,6 +72,14 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 `GET /api/list` 额外返回 `abs`：当前目录的绝对路径（前端据此渲染完整路径栏）。
 
 端点：`GET /api/list`、`GET /api/search`、`POST /api/mkdir`、`/api/create`、`/api/rename`、`/api/copy`、`/api/move`、`/api/delete`（`mode:"trash"|"permanent"`）、`GET /api/trash`、`POST /api/trash/restore`、`/api/trash/purge`、`GET /api/read`、`POST /api/write`、`GET /api/root`、`GET /api/settings`、`POST /api/settings`、`GET /api/term/ws`（终端 WebSocket，见下）。
+
+### 用户设置端点（/api/settings）
+
+- `GET /api/settings` → `{"settings":{keys,keyBarEnabled,startupCommand},"fromFile":bool[,"warning":"..."]}`。
+  文件不存在/损坏时返回内置默认 + `warning`（前端 toast 一次）；坏文件保留不覆盖。
+- `POST /api/settings` 体同上三个字段（**整包覆盖**）→ `{"ok":true,"settings":<落盘后>}`。
+  校验：键布局（行数/每行键数/键名长度与空白）+ 启动命令（长度 ≤512 字、不得含换行）。
+  前端 `saveSettings` 对未提供的字段回退到当前生效值，保证「只改键盘页不丢启动命令」。
 
 ### 编辑器端点（/api/read、/api/write）
 
@@ -86,8 +104,13 @@ go build . && ./kfm              # 默认 127.0.0.1:8080
 - **路径解析**：`internal/fs/root.go` 的 `Resolve(p)` 是唯一的解析入口——空路径 → 起始目录，
   绝对路径原样清洗，相对路径拼接起始目录后 `Clean`；不再解析符号链接、也不做越界校验
   （访问范围就是整台机器，权限交给操作系统）。`display.go` 负责展示路径与绝对路径的互转
-  （`DisplayPath` / `StorePath`）。
-- **用户设置**：`.kfm-settings.json` 的 `{keys, keyBarEnabled}`，由设置页读写。
+  （`DisplayPath` / `StorePath`）。唯一的 exec 点是用户设置的启动命令
+  （`main.runStartupCommand` → `fs.StartupArgv`，见下），不经过 shell。
+- **用户设置**：`.kfm-settings.json` 的 `{keys, keyBarEnabled, startupCommand}`。
+  `startupCommand` 是启动命令模板（空 = 不执行任何东西），main 在监听成功后读取并
+  best-effort 执行（缺命令/失败只打日志，不影响服务）。设置页的保存是**部分更新**：
+  服务端整包覆盖，因此前端 `saveSettings` 对未提供的字段回退到当前生效值，
+  否则只保存键盘页会把启动命令清空。
 - **回收站**：`<起始目录>/.kfm-trash/<unixnano-hex>/`，内含 `meta.json`（`{path, time, names[]}`）
   与原条目；`path` 保存展示路径（相对或绝对），跨会话恢复仍指向同一位置。一次删除 = 一个批次，
   恢复整批 rename 回去。列表 API 永远排除 `.kfm-trash`。
@@ -111,4 +134,4 @@ go test ./...
 cd frontend && npm test     # 纯 node 回归测试（无需浏览器/构建）
 ```
 
-`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、路径语义（拼接/上级/展示名/cwd 换算）。
+`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、路径语义（拼接/上级/展示名/cwd 换算）。

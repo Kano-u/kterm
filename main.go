@@ -8,16 +8,15 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"time"
 
+	"kfm/internal/fs"
 	"kfm/internal/server"
 )
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址")
-	open := flag.Bool("open", true, "启动时尝试打开浏览器")
 	lan := flag.Bool("lan", false, "允许局域网设备访问（默认关闭，仅本机；-lan 监听所有网卡）")
 	flag.Parse()
 
@@ -51,16 +50,47 @@ func main() {
 		}
 	}
 
-	if *open {
-		// best-effort 打开浏览器，失败忽略
-		go func() {
-			if err := openBrowser(url); err != nil {
-				log.Printf("自动打开浏览器失败（可手动访问 %s）: %v", url, err)
-			}
-		}()
+	// 先监听端口，端口被占用时立刻报错（不要白启动一次启动命令）
+	ln, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		log.Fatalf("监听 %s 失败（可用 -addr 换端口）: %v", listenAddr, err)
 	}
 
-	log.Fatal(newServer(listenAddr, server.New(port, *lan)).ListenAndServe())
+	// 启动命令（用户设置 startupCommand）在服务就绪后 best-effort 执行，不阻塞服务
+	if err := runStartupCommand(url); err != nil {
+		log.Printf("启动命令执行失败（可手动访问 %s）: %v", url, err)
+	}
+
+	log.Fatal(newServer(listenAddr, server.New(port, *lan)).Serve(ln))
+}
+
+// runStartupCommand 读取用户设置里的启动命令模板并异步执行（best-effort）。
+//
+// 命令来自 <起始目录>/.kfm-settings.json 的 startupCommand 字段：它属于「用户设置」，
+// 而不是编译进程序的平台默认值，因此在哪台机器构建都不影响行为。
+// 模板里的 {url} 替换为服务地址；模板为空（默认）时不执行任何东西。
+func runStartupCommand(url string) error {
+	load := server.Root().LoadSettings()
+	if load.Warning != "" {
+		log.Printf("读取设置提示: %s", load.Warning)
+	}
+	argv, err := fs.StartupArgv(load.Settings.StartupCommand, url)
+	if err != nil {
+		return fmt.Errorf("启动命令无法解析: %w", err)
+	}
+	if len(argv) == 0 {
+		return nil
+	}
+	exe, err := exec.LookPath(argv[0])
+	if err != nil {
+		return fmt.Errorf("找不到命令 %q: %w", argv[0], err)
+	}
+	go func() {
+		if err := exec.Command(exe, argv[1:]...).Run(); err != nil {
+			log.Printf("启动命令 %v 执行失败: %v", argv, err)
+		}
+	}()
+	return nil
 }
 
 // newServer 构造带基础超时参数的 http.Server，防止慢客户端/半开连接长期占用。
@@ -71,23 +101,6 @@ func newServer(addr string, h http.Handler) *http.Server {
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-}
-
-// openBrowser 按平台打开默认浏览器（best-effort）。
-func openBrowser(url string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	case "darwin":
-		cmd = exec.Command("open", url)
-	case "android":
-		// Termux 环境
-		cmd = exec.Command("termux-open-url", url)
-	default:
-		cmd = exec.Command("xdg-open", url)
-	}
-	return cmd.Run()
 }
 
 // lanIPs 枚举本机网卡上的私有网络 IPv4 地址（用于提示局域网访问地址）。
