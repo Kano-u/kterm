@@ -2,7 +2,6 @@
 import { ref, watch, nextTick } from 'vue'
 import { dialogState, closeDialog } from '../dialog.js'
 import { toast } from '../toast.js'
-import Icon from './Icon.vue'
 
 const input = ref(null)
 
@@ -68,14 +67,14 @@ function onKeydown(ev) {
   <Teleport to="body">
     <div
       v-if="dialogState.show"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-6"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
       @click.self="closeDialog(null)"
     >
       <!-- M3 对话框：28dp 圆角 -->
       <div
         role="dialog"
         aria-modal="true"
-        class="m3-pop w-full max-w-md rounded-[28px] bg-surface-2 p-6 pb-4 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
+        class="m3-pop w-full max-w-md rounded-[28px] bg-surface-2 p-5 pb-3 shadow-[0_8px_32px_rgba(0,0,0,0.35)]"
       >
         <div class="mb-4 truncate text-xl font-normal text-on-surface">{{ dialogState.title }}</div>
         <input
@@ -89,38 +88,37 @@ function onKeydown(ev) {
         >
         <div class="mt-5 flex items-center justify-between gap-2">
           <button
-            class="state-layer flex h-11 w-11 items-center justify-center rounded-full text-on-surface-variant"
+            class="state-layer flex h-11 w-10 flex-none items-center justify-center rounded-full text-on-surface-variant"
             title="插入点号"
             @click="insertDot"
           >
             <span class="text-lg font-bold">.</span>
           </button>
-          <div class="flex gap-1">
+          <div class="flex gap-0.5">
             <button
-              class="state-layer flex h-11 flex-none items-center rounded-full px-4 text-sm font-medium text-primary"
+              class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary"
               @click="closeDialog(null)"
             >
               取消
             </button>
             <template v-if="dialogState.mode === 'new'">
+              <!-- 新建：文件 / 文件夹两个动作按钮（不放图标，移动端更紧凑） -->
               <button
-                class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary"
+                class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary"
                 @click="submitNew('file')"
               >
-                <Icon name="note_add" :size="20" />
                 文件
               </button>
               <button
-                class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary"
+                class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary"
                 @click="submitNew('dir')"
               >
-                <Icon name="create_new_folder" :size="20" />
                 文件夹
               </button>
             </template>
             <button
               v-else
-              class="state-layer flex h-11 flex-none items-center rounded-full px-4 text-sm font-medium text-primary"
+              class="state-layer flex h-11 flex-none items-center rounded-full px-3.5 text-sm font-medium text-primary"
               @click="submitText"
             >
               确定
