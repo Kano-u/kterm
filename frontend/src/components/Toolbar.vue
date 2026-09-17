@@ -5,6 +5,7 @@ import { state, activeTab } from '../store.js'
 import { navigate, startSearch, onSearchInput, endSearch } from '../actions.js'
 import { ask } from '../dialog.js'
 import { doCreate } from '../actions.js'
+import { activeBusy } from '../terminal.js'
 import TrashPanel from './TrashPanel.vue'
 
 const menu = ref(false)
@@ -43,7 +44,7 @@ function toggleHidden() {
   state.showHidden = !state.showHidden
 }
 
-/* 新建：弹输入框（文件 / 文件夹） */
+/* 新建：弹输入框（文件 / 文件夹）；终端运行中禁用 */
 async function onNew() {
   closeMenu()
   const result = await ask({ title: '新建', mode: 'new' })
@@ -132,7 +133,9 @@ function cancelSearch() {
       style="top: calc(env(safe-area-inset-top) + 60px + 40px)"
     >
       <button
-        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface"
+        class="state-layer flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-on-surface transition-opacity disabled:pointer-events-none disabled:opacity-35"
+        :disabled="activeBusy()"
+        :title="activeBusy() ? '终端正在运行命令' : '新建'"
         @click="onNew"
       >
         <Icon name="add" :size="20" />

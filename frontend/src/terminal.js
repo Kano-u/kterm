@@ -2,7 +2,8 @@
  *
  * state.terminals: Map<tabId, {
  *   status: 'starting' | 'running' | 'ended',
- *   busy: boolean,        // T3 使用
+ *   busy: boolean,        // 是否有命令在运行（T3 运行锁定）
+ *   degraded: boolean,    // 该 shell 无 OSC 133 集成（cmd），busy 为启发式近似
  *   outsideRoot: boolean, // cwd 是否在 root 外（T2）
  *   ws: WebSocket | null,
  * }>
@@ -10,6 +11,9 @@
 import { reactive } from 'vue'
 import { state, activeTab } from './store.js'
 import { toast } from './toast.js'
+
+/* 已提示过降级的 tab（cmd 等），避免每次重连重复 toast */
+const degradedNotified = new Set()
 
 /* 取某 tab 的终端条目（无则 undefined） */
 export function termOf(tabId) {
@@ -25,7 +29,7 @@ export function activeTerm() {
 export function ensureTermEntry(tabId) {
   let t = state.terminals.get(tabId)
   if (!t) {
-    t = reactive({ status: 'starting', busy: false, outsideRoot: false, ws: null })
+    t = reactive({ status: 'starting', busy: false, degraded: false, outsideRoot: false, ws: null })
     state.terminals.set(tabId, t)
   }
   return t
@@ -101,7 +105,15 @@ function onJsonMsg(tab, entry, msg, handlers) {
     case 'cwd':
       handleCwd(tab, entry, msg.abs)
       break
-    case 'busy': // T3
+    case 'shell': // T3：首帧 shell 信息（降级提示）
+      entry.degraded = !!msg.degraded
+      if (entry.degraded && !degradedNotified.has(tab.id)) {
+        degradedNotified.add(tab.id)
+        toast('当前 shell 无运行状态集成，锁定判断为近似结果')
+      }
+      break
+    case 'busy': // T3：运行状态 → 运行锁定
+      entry.busy = !!msg.on
       break
   }
 }
@@ -184,6 +196,38 @@ export function sendInput(tabId, data) {
 /* 发送 resize */
 export function sendResize(tabId, cols, rows) {
   sendFrame(tabId, { t: 'resize', cols, rows })
+}
+
+/* ---------- T3：运行锁定 ---------- */
+
+/* 指定标签的终端是否有命令在运行 */
+export function isBusy(tabId) {
+  const t = state.terminals.get(tabId)
+  return !!(t && t.busy)
+}
+
+/* 当前激活文件标签的终端是否正在运行命令 */
+export function activeBusy() {
+  return isBusy(activeTab().id)
+}
+
+/* 允许在 busy 时执行的写操作前置校验：命中则 toast 并返回 false。
+ * 服务端 handlers 也会做同样的兜底（拒绝写入 busy 终端目录）。 */
+export function ensureUnlocked() {
+  if (activeBusy()) {
+    toast('终端正在运行命令')
+    return false
+  }
+  return true
+}
+
+/* 关闭标签的锁定校验：busy 的终端不能关（先让用户中断命令） */
+export function ensureCloseable(tabId) {
+  if (isBusy(tabId)) {
+    toast('终端正在运行命令')
+    return false
+  }
+  return true
 }
 
 /* 视图切换：进入终端视图时惰性建连 */

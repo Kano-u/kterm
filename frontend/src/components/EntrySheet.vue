@@ -2,6 +2,7 @@
 import { ask } from '../dialog.js'
 import { doRename, confirmDelete } from '../actions.js'
 import { fmtSize, fmtTime } from '../store.js'
+import { activeBusy } from '../terminal.js'
 import Icon from './Icon.vue'
 import { fileIcon } from '../icons.js'
 
@@ -68,14 +69,18 @@ async function onDelete() {
             关闭
           </button>
           <button
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-error"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            :disabled="activeBusy()"
+            :title="activeBusy() ? '终端正在运行命令' : '删除'"
             @click="onDelete"
           >
             <Icon name="delete" :size="20" />
             删除
           </button>
           <button
-            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            :disabled="activeBusy()"
+            :title="activeBusy() ? '终端正在运行命令' : '重命名'"
             @click="onRename"
           >
             <Icon name="edit" :size="20" />

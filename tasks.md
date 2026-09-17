@@ -52,18 +52,19 @@
 
 ### 服务端
 
-- [ ] OSC 133;C → busy=true，133;D → busy=false；推送 S→C `{"t":"busy","on":..}`
-- [ ] 无 133 标记的 shell（cmd 等）降级：前端检测输入含 `\r` 置 busy，收到下条 prompt 输出复位
-- [ ] `manager.BusyPaths()`：暴露 busy 会话的 cwd 集合
-- [ ] `handlers.go` 写操作（mkdir/create/rename/copy/move/delete）执行前检查目标路径是否落在 busy cwd 内，命中返回错误「该目录正在终端中运行命令」
+- [x] OSC 133;C → busy=true，133;D → busy=false；推送 S→C `{"t":"busy","on":..}`
+- [x] PowerShell 补 `133;C`：PSReadLine `AddToHistoryHandler`（回车上锁）；prompt 函数继续发 `133;D/A`
+- [x] 无 133 标记的 shell（cmd 等）降级：输入含 `\r` 置 busy，输出静默 1.5s（上限 60s，有输出则顺延）复位
+- [x] `manager.BusyPaths()`：暴露 busy 会话的 cwd 集合
+- [x] `handlers.go` 写操作（mkdir/create/rename/copy/move/delete）执行前检查目标路径是否落在 busy cwd 内，命中返回 409「该目录正在终端中运行命令」
 
 ### 前端
 
-- [ ] `state.terminals` 维护 busy 状态
-- [ ] `Tabbar.vue`：busy 终端绑定的标签 X 按钮禁用 + 灰化；`closeTab` 前置校验 + toast「终端正在运行命令」；仍可切换标签
-- [ ] 激活被锁标签时，文件写操作入口（删除/剪切/粘贴/重命名/新建）禁用
-- [ ] `Taskbar.vue` 终端入口：当前激活文件标签的终端 busy 时显示转圈指示
-- [ ] 手测：长时间 ping / vim 中 X 禁用、文件操作禁用；切到其他标签不受影响；服务端兜底对直接调 API 也生效
+- [x] `state.terminals` 维护 busy 状态（另记 `degraded`，cmd 降级时 toast 说明）
+- [x] `Tabbar.vue`：busy 终端绑定的标签 X 按钮禁用 + 灰化 + 转圈标记；`closeTab` 前置校验 + toast「终端正在运行命令」；仍可切换标签
+- [x] 激活被锁标签时，文件写操作入口（删除/剪切/粘贴/重命名/新建）禁用；`actions.js` 内同样前置校验
+- [x] `Taskbar.vue` 终端入口：当前激活文件标签的终端 busy 时显示转圈指示
+- [x] 手测：长时间 ping 中 X 禁用、文件操作禁用；切到其他标签不受影响；服务端兜底对直接调 API 也生效
 
 ## T4 退出与生命周期
 

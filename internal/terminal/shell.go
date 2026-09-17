@@ -106,8 +106,12 @@ func detectShellUnix() (*shellInfo, error) {
 
 // psInitScript 返回 PowerShell（pwsh 7+ 与 Windows PowerShell 5.1 通用）的启动集成片段。
 //
-// 重定义 prompt 函数：每次提示符输出前写 OSC 7（cwd 上报）与 OSC 133;D/133;A
-// （命令结束/提示符开始，T3 消费），随后回显用户原有 prompt。
+// 两处注入：
+//   - 重定义 prompt 函数：每次提示符输出前写 OSC 7（cwd 上报）与 OSC 133;D/133;A
+//     （命令结束 / 提示符开始，T3 据此解除锁定），随后回显用户原有 prompt；
+//   - PSReadLine 的 AddToHistoryHandler：用户在提示符处回车（命令即将执行）时
+//     写 OSC 133;C（T3 据此上锁）。不用 OnIdle / prompt 推断：前者在空闲时反复触发，
+//     后者无法区分“回车执行”与“直接回车”。
 //
 // 三个关键点（此前均踩坑）：
 //   - 必须自行注入。pwsh 虽有内置 shell integration，但仅对 VS Code / Windows
@@ -119,6 +123,7 @@ func detectShellUnix() (*shellInfo, error) {
 func psInitScript() string {
 	return `$global:__kfmE = [char]27
 $global:__kfmOrig = $function:prompt
+function global:__kfmOsc($s) { [Console]::Write($global:__kfmE + ']' + $s + $global:__kfmE + '\') }
 function global:prompt {
   $p = (Get-Location).Path -replace '\\', '/'
   $u = 'file:///' + $p.TrimStart('/')
@@ -126,6 +131,15 @@ function global:prompt {
   [Console]::Write($global:__kfmE + ']133;D' + $global:__kfmE + '\')
   [Console]::Write($global:__kfmE + ']133;A' + $global:__kfmE + '\')
   if ($global:__kfmOrig) { & $global:__kfmOrig } else { "PS $((Get-Location).Path)> " }
+}
+if (Get-Module -ListAvailable PSReadLine) {
+  try {
+    Set-PSReadLineOption -AddToHistoryHandler {
+      param($line)
+      __kfmOsc '133;C'
+      return $true
+    }
+  } catch { }
 }
 `
 }

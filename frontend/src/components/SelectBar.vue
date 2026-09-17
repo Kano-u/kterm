@@ -1,6 +1,7 @@
 <script setup>
 import { state, shownEntries, enterMultiSelect, exitMultiSelect, toggleSelect } from '../store.js'
 import { copySelection, cutSelection, confirmDelete } from '../actions.js'
+import { activeBusy } from '../terminal.js'
 import Icon from './Icon.vue'
 
 function selectAll() {
@@ -42,14 +43,18 @@ async function onDelete() {
       复制
     </button>
     <button
-      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-3 text-sm text-primary"
+      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-3 text-sm text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+      :disabled="activeBusy()"
+      :title="activeBusy() ? '终端正在运行命令' : '剪切'"
       @click="cutSelection"
     >
       <Icon name="content_cut" :size="20" />
       移动
     </button>
     <button
-      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-3 text-sm text-error"
+      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full px-3 text-sm text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"
+      :disabled="activeBusy()"
+      :title="activeBusy() ? '终端正在运行命令' : '删除'"
       @click="onDelete"
     >
       <Icon name="delete" :size="20" />

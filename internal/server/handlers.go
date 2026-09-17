@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"kfm/internal/fs"
+	"kfm/internal/terminal"
 )
 
 // writeErr 统一错误格式 {"error":"中文错误消息"}。
@@ -95,9 +96,58 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 
+// ---------- T3：运行锁定服务端兜底 ----------
+//
+// UI 已在终端 busy 时禁用对应标签的写操作入口；此处再做一层防御：
+// 直接调用 API（或前端状态不同步）时同样拒绝，避免破坏正在运行的命令。
+
+// joinRel 拼接相对路径（与服务端 API 的 '/ 分隔' 约定一致）。
+func joinRel(dir, name string) string {
+	if dir == "" {
+		return name
+	}
+	return dir + "/" + name
+}
+
+// joinRels 返回 dir 下所有名字拼出的相对路径。
+func joinRels(dir string, names []string) []string {
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		out = append(out, joinRel(dir, n))
+	}
+	return out
+}
+
+// busyLocked 报告 rels 中是否有任一目标路径落在某个 busy 终端的工作目录内。
+// 无法解析的路径跳过（交由后续操作自身报错）。
+func busyLocked(rels ...string) bool {
+	for _, rel := range rels {
+		abs, err := root.Resolve(rel)
+		if err != nil {
+			continue
+		}
+		if terminal.IsBusyPath(abs) {
+			return true
+		}
+	}
+	return false
+}
+
+// rejectIfBusy 命中 busy 终端目录时写错误响应并返回 true。
+func rejectIfBusy(w http.ResponseWriter, rels ...string) bool {
+	if busyLocked(rels...) {
+		writeErr(w, http.StatusConflict, "该目录正在终端中运行命令")
+		return true
+	}
+	return false
+}
+
 func handleMkdir(w http.ResponseWriter, r *http.Request) {
 	var req pathNameReq
 	if !decodeBody(w, r, &req) {
+		return
+	}
+	if rejectIfBusy(w, req.Path) {
 		return
 	}
 	if err := root.Mkdir(req.Path, req.Name); err != nil {
@@ -112,6 +162,9 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
+	if rejectIfBusy(w, req.Path) {
+		return
+	}
 	if err := root.Create(req.Path, req.Name); err != nil {
 		errToHTTP(w, err)
 		return
@@ -122,6 +175,9 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 func handleRename(w http.ResponseWriter, r *http.Request) {
 	var req renameReq
 	if !decodeBody(w, r, &req) {
+		return
+	}
+	if rejectIfBusy(w, req.Path) {
 		return
 	}
 	if err := root.Rename(req.Path, req.OldName, req.NewName); err != nil {
@@ -143,6 +199,10 @@ func handleCopy(w http.ResponseWriter, r *http.Request) {
 	if !decodeBody(w, r, &req) {
 		return
 	}
+	// 复制会写入目标位置；源只读，不锁
+	if rejectIfBusy(w, joinRels(req.DestPath, req.Names)...) {
+		return
+	}
 	report, err := root.CopyItems(req.SrcPath, req.Names, req.DestPath)
 	if err != nil {
 		errToHTTP(w, err)
@@ -154,6 +214,12 @@ func handleCopy(w http.ResponseWriter, r *http.Request) {
 func handleMove(w http.ResponseWriter, r *http.Request) {
 	var req clipReq
 	if !decodeBody(w, r, &req) {
+		return
+	}
+	// 移动会删除源条目：源与目标任一落在 busy 目录内都拒绝
+	locked := joinRels(req.DestPath, req.Names)
+	locked = append(locked, joinRels(req.SrcPath, req.Names)...)
+	if rejectIfBusy(w, locked...) {
 		return
 	}
 	report, err := root.MoveItems(req.SrcPath, req.Names, req.DestPath)
@@ -179,6 +245,9 @@ func handleDelete(w http.ResponseWriter, r *http.Request) {
 	permanent := req.Mode == "permanent"
 	if req.Mode != "trash" && !permanent {
 		writeErr(w, http.StatusBadRequest, "mode 必须为 trash 或 permanent")
+		return
+	}
+	if rejectIfBusy(w, req.Path) {
 		return
 	}
 	report, err := root.DeleteItems(req.Path, req.Names, permanent)

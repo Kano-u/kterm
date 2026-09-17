@@ -1,6 +1,7 @@
 <script setup>
 import { state } from '../store.js'
 import { pasteClipboard, clearClipboard } from '../actions.js'
+import { activeBusy } from '../terminal.js'
 import Icon from './Icon.vue'
 </script>
 
@@ -22,7 +23,9 @@ import Icon from './Icon.vue'
       清空
     </button>
     <button
-      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-medium text-on-primary"
+      class="state-layer flex h-11 flex-none items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-medium text-on-primary transition-opacity disabled:pointer-events-none disabled:opacity-40"
+      :disabled="activeBusy()"
+      :title="activeBusy() ? '终端正在运行命令' : '粘贴'"
       @click="pasteClipboard"
     >
       <Icon name="content_paste" :size="20" />

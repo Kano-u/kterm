@@ -4,7 +4,7 @@ import {
   state, activeTab, saveState, newTab, exitMultiSelect, resetSearch,
 } from './store.js'
 import { confirm } from './confirm.js'
-import { sendCd } from './terminal.js'
+import { sendCd, ensureUnlocked, ensureCloseable } from './terminal.js'
 
 /* 文件页导航成功后向该 tab 的终端注入 cd（T2 双向同步） */
 function syncTerminalCd(tab) {
@@ -111,6 +111,8 @@ export async function addTab() {
 
 export function closeTab(id) {
   if (state.tabs.length <= 1) return // 至少保留一个标签
+  // T3：该标签的终端有命令在运行时拒绝关闭（toast 提示）
+  if (!ensureCloseable(id)) return
   const idx = state.tabs.findIndex((t) => t.id === id)
   state.tabs.splice(idx, 1)
   if (state.activeTabId === id) {
@@ -158,6 +160,7 @@ export async function refreshActive() {
 /* ---------- 基础操作（新建 / 重命名） ---------- */
 
 export async function doCreate(result) {
+  if (!ensureUnlocked()) return false // T3：当前标签终端运行中
   const tab = activeTab()
   try {
     if (result.kind === 'dir') {
@@ -176,6 +179,7 @@ export async function doCreate(result) {
 }
 
 export async function doRename(entry, newName) {
+  if (!ensureUnlocked()) return false // T3
   const tab = activeTab()
   try {
     await apiOp('/api/rename', { path: tab.path, oldName: entry.name, newName })
@@ -195,6 +199,7 @@ export async function doRename(entry, newName) {
  * 返回 true 表示执行了任一删除（调用方刷新列表）。
  */
 export async function confirmDelete(names) {
+  if (!ensureUnlocked()) return false // T3：当前标签终端运行中
   const n = names.length
   const label = n === 1 ? `“${names[0]}”` : `${n} 项`
   const choice = await confirm({
@@ -365,6 +370,7 @@ export function copySelection() {
 
 export function cutSelection() {
   if (state.multi.sel.size === 0) return
+  if (!ensureUnlocked()) return // T3：剪切会移动文件
   state.clipboard = { mode: 'cut', srcPath: activeTab().path, names: [...state.multi.sel] }
   const n = state.clipboard.names.length
   exitMultiSelect()
@@ -379,6 +385,7 @@ export function clearClipboard() {
 export async function pasteClipboard() {
   const clip = state.clipboard
   if (!clip) return
+  if (!ensureUnlocked()) return // T3：粘贴是写操作
   const tab = activeTab()
   const url = clip.mode === 'copy' ? '/api/copy' : '/api/move'
   try {
