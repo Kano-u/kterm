@@ -8,12 +8,13 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { state, activeTab } from '../store.js'
 import { connectTerminal, removeTerm, sendInput, sendResize } from '../terminal.js'
+import { attachTouchScroll } from '../touchscroll.js'
 
 const layersEl = ref(null)
 const layerCount = ref(0) // 用于空态提示的显隐
 /* 当前激活 tab 的终端 cwd 是否在 root 外（T2 提示条） */
 const outsideRoot = computed(() => state.terminals.get(state.activeTabId)?.outsideRoot === true)
-/* tabId -> {el, term, fit, resizeObs} */
+/* tabId -> {el, term, fit, resizeObs, detachTouch} */
 const xs = new Map()
 
 /* 终端配色：固定深色，与 M3 dark 令牌一致（surface-1 = #2e2c36）。
@@ -47,7 +48,9 @@ const TERM_THEME = {
 
 function createXterm(tabId) {
   const el = document.createElement('div')
-  el.className = 'absolute inset-0'
+  // term-touch 提供 touch-action: none，让浏览器不接管纵向手势，
+  // 否则 touchmove 会变成不可取消，触摸滚动无法生效（见 touchscroll.js）
+  el.className = 'absolute inset-0 term-touch'
   el.style.display = 'none'
   layersEl.value.appendChild(el)
 
@@ -62,6 +65,8 @@ function createXterm(tabId) {
   term.loadAddon(fit)
   term.open(el)
   term.onData((d) => sendInput(tabId, d))
+  // xterm 6 内部只处理 wheel，移动端拖动需要自己实现（含惯性）
+  const detachTouch = attachTouchScroll(el, term)
 
   const resizeObs = new ResizeObserver(() => {
     if (el.style.display !== 'none') {
@@ -73,7 +78,7 @@ function createXterm(tabId) {
   })
   resizeObs.observe(el)
 
-  const x = { el, term, fit, resizeObs }
+  const x = { el, term, fit, resizeObs, detachTouch }
   xs.set(tabId, x)
   layerCount.value = xs.size
   return x
@@ -123,6 +128,7 @@ function disposeXterm(tabId) {
   const x = xs.get(tabId)
   if (!x) return
   x.resizeObs.disconnect()
+  x.detachTouch()
   x.term.dispose()
   x.el.remove()
   xs.delete(tabId)

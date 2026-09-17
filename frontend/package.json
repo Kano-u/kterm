@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "watch": "vite build --watch",
-    "test": "node test/settingsnav.test.mjs"
+    "test": "node test/settingsnav.test.mjs && node test/touchscroll.test.mjs"
   },
   "dependencies": {
     "@fontsource-variable/roboto": "^5.3.0",

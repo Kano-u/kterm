@@ -54,6 +54,12 @@
   }
 }
 
+/* 终端层：关掉浏览器自身的触摸手势（纵向滚动/下拉刷新），
+ * 由 touchscroll.js 统一处理拖动与惯性；否则 touchmove 不可取消。 */
+.term-touch {
+  touch-action: none;
+}
+
 /* ---------- M3 状态层（hover/press 反馈） ---------- */
 .state-layer {
   position: relative;
