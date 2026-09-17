@@ -25,6 +25,13 @@ export function activeTerm() {
   return state.terminals.get(activeTab().id)
 }
 
+/* 该标签是否已打开终端会话（starting/running）——标签页标记用。
+ * 条目仅在真正建连/建 xterm 时创建，会话结束即移除，故存在即「已打开」。 */
+export function isTermOpen(tabId) {
+  const t = state.terminals.get(tabId)
+  return !!t && t.status !== 'ended'
+}
+
 /* 创建终端条目（惰性：首次进入终端视图时调用） */
 export function ensureTermEntry(tabId) {
   let t = state.terminals.get(tabId)

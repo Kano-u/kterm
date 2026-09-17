@@ -1,12 +1,17 @@
 <script setup>
 import { state, baseName, tabTitle } from '../store.js'
 import { addTab, closeTab, switchTab } from '../actions.js'
-import { isBusy } from '../terminal.js'
+import { isBusy, isTermOpen } from '../terminal.js'
 import Icon from './Icon.vue'
 
 /* T3：该标签绑定的终端有命令在运行时锁定关闭按钮（仍可切换标签） */
 function locked(id) {
   return isBusy(id)
+}
+
+/* 该标签已打开终端会话（在标签上显示终端标记） */
+function termOpen(id) {
+  return isTermOpen(id)
 }
 </script>
 
@@ -29,13 +34,26 @@ function locked(id) {
       "
       @click="switchTab(t.id)"
     >
-      <span v-if="tabTitle(t)" class="material-symbols-outlined flex-none text-primary" style="font-size: 8px">circle</span>
+      <!-- 标签标记（三者互斥，均为 8~13px 小字形，不额外占宽）：
+           命令运行中 = 转圈；已开终端 = 终端小图标；其余 = 目录未跟随的圆点 -->
       <span
         v-if="locked(t.id)"
         class="material-symbols-outlined flex-none animate-spin text-primary"
         style="font-size: 13px"
         title="终端正在运行命令"
       >progress_activity</span>
+      <span
+        v-else-if="termOpen(t.id)"
+        class="material-symbols-outlined flex-none"
+        :class="t.id === state.activeTabId ? 'text-primary' : 'text-on-surface-variant'"
+        style="font-size: 12px"
+        title="该标签已打开终端"
+      >terminal</span>
+      <span
+        v-else-if="tabTitle(t)"
+        class="material-symbols-outlined flex-none text-primary"
+        style="font-size: 8px"
+      >circle</span>
       <span class="min-w-0 truncate text-[13px] leading-none">{{ baseName(t.path) }}</span>
       <button
         class="state-layer flex h-7 w-7 flex-none items-center justify-center rounded-full transition-opacity disabled:pointer-events-none disabled:opacity-30"
