@@ -21,14 +21,11 @@ export async function navigate(path, opts = {}) {
   await navigateTab(activeTab(), path, opts)
 }
 
-/* 指定标签导航。tab 非当前活动标签时只更新其缓存/历史（后台同步，不 pushState）。 */
+/* 指定标签导航。tab 非当前活动标签时只更新其缓存/历史（后台同步，不 pushState）。
+ * 不改变 state.view：终端 OSC 7 上报可能来自后台标签，当前视图（编辑/终端）不应被扰动。 */
 export async function navigateTab(tab, path, opts = {}) {
   if (!state.tabs.includes(tab)) return // 标签已被关闭
   exitMultiSelect()
-  // 文件页导航：若该标签正停留在编辑/终端视图，切回文件视图（编辑器会话保留不丢）
-  if (state.activeTabId === tab.id && state.view !== 'files' && state.view !== 'settings') {
-    state.view = 'files'
-  }
   try {
     const data = await apiList(path)
     tab.path = data.path || ''

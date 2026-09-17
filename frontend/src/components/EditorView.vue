@@ -98,9 +98,20 @@ function cursorOf(view) {
   return { line: line.number, col: head - line.from + 1, lines: view.state.doc.lines }
 }
 
-/* 建层：仅在需要编辑该 tab 时创建 CM 实例（含语言包 / 主题的懒加载） */
-async function ensureLayer(tabId) {
-  if (layers.has(tabId)) return layers.get(tabId)
+/* 建层：仅在需要编辑该 tab 时创建 CM 实例（含语言包 / 主题的懒加载）。
+ * pending 去重：watch 可能在同一 tick 内触发多次（会话新增 + 视图切换），
+ * 而 ensureLayer 内部有 await，否则会重复创建 CM 实例。 */
+const pending = new Map()
+
+function ensureLayer(tabId) {
+  if (layers.has(tabId)) return Promise.resolve(layers.get(tabId))
+  if (pending.has(tabId)) return pending.get(tabId)
+  const p = createLayer(tabId).finally(() => pending.delete(tabId))
+  pending.set(tabId, p)
+  return p
+}
+
+async function createLayer(tabId) {
   const entry = state.editors.get(tabId)
   if (!entry) return null
 
@@ -220,7 +231,8 @@ watch(
     const tabId = state.activeTabId
     if (!alive.has(tabId)) return
     const rec = await ensureLayer(tabId)
-    if (rec) showLayer(tabId)
+    // 等待期间视图/标签可能又变了，只在仍应显示时展示
+    if (rec && state.view === 'editor' && state.activeTabId === tabId) showLayer(tabId)
   },
   { flush: 'post' },
 )
@@ -232,7 +244,7 @@ watch(
     if (view !== 'editor') return
     if (!state.editors.has(tabId)) return
     const rec = await ensureLayer(tabId)
-    if (rec) showLayer(tabId)
+    if (rec && state.view === 'editor' && state.activeTabId === tabId) showLayer(tabId)
   },
   { flush: 'post' },
 )
