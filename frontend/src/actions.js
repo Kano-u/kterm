@@ -5,6 +5,7 @@ import {
 } from './store.js'
 import { confirm } from './confirm.js'
 import { sendCd, ensureUnlocked, ensureCloseable, removeTerm } from './terminal.js'
+import { editorDirty, dropEditor, closeEditor } from './editor.js'
 import { isSettingsState, applySettingsState, exitSettings, canLeaveSettings, reopenSettingsPage, takeGuardPassed } from './settingsnav.js'
 
 /* 文件页导航成功后向该 tab 的终端注入 cd（T2 双向同步） */
@@ -24,6 +25,10 @@ export async function navigate(path, opts = {}) {
 export async function navigateTab(tab, path, opts = {}) {
   if (!state.tabs.includes(tab)) return // 标签已被关闭
   exitMultiSelect()
+  // 文件页导航：若该标签正停留在编辑/终端视图，切回文件视图（编辑器会话保留不丢）
+  if (state.activeTabId === tab.id && state.view !== 'files' && state.view !== 'settings') {
+    state.view = 'files'
+  }
   try {
     const data = await apiList(path)
     tab.path = data.path || ''
@@ -47,6 +52,9 @@ export async function navigateTab(tab, path, opts = {}) {
 /* Android 返回手势 / 浏览器后退：恢复对应 tab 的上一路径（前进由浏览器自身的历史栈承担，
  * 页面内不再提供前进/后退按钮）
  *
+ * 编辑器会话不会因返回手势或视图切换而销毁（切走再切回 doc/撤销栈原样保留），
+ * 因此这里只在「同一标签内换文件」时询问，不做多余的丢改动确认。
+ *
  * 设置子页有未保存改动时，返回手势已经生效（记录已出栈），因此这里用「先把记录压回去」
  * 的方式撤销这次返回，等用户确认后再走一次 history.back()。 */
 export async function onPopState(ev, restorePath) {
@@ -65,8 +73,18 @@ export async function onPopState(ev, restorePath) {
     applySettingsState(s)
     return
   }
-  // 从设置页退回文件/终端记录：还原进入设置前的视图
+  // 从设置页退回文件/终端/编辑器记录：还原进入设置前的视图
   if (state.view === 'settings') exitSettings()
+
+  // 编辑器记录：返回手势回到进入编辑器前的文件列表（会话保留不丢）。
+  // 会话已被关闭（无 dirty 时关掉）时记录会失效，此时按文件视图处理。
+  const tab0 = s && s.tabId ? state.tabs.find((t) => t.id === s.tabId) : null
+  if (s && s.editor && tab0 && state.editors.has(tab0.id)) {
+    state.activeTabId = tab0.id
+    state.view = 'editor'
+    return
+  }
+  if (state.view === 'editor') state.view = 'files'
 
   let tab = null
   if (s && s.tabId) tab = state.tabs.find((t) => t.id === s.tabId)
@@ -106,7 +124,7 @@ export async function addTab() {
   }
   state.tabs.push(tab)
   state.activeTabId = tab.id
-  state.view = 'files' // 新建标签默认进入文件视图（终端惰性创建，不跟随）
+  state.view = 'files' // 新建标签默认进入文件视图（终端/编辑器惰性创建，不跟随）
   history.pushState({ tabId: tab.id, path: '' }, '')
   saveState()
 }
@@ -115,13 +133,30 @@ export function closeTab(id) {
   if (state.tabs.length <= 1) return // 至少保留一个标签
   // T3：该标签的终端有命令在运行时拒绝关闭（toast 提示）
   if (!ensureCloseable(id)) return
+  // E4：该标签的编辑器有未保存改动时先确认（异步，确认后再关）
+  closeTabConfirmed(id)
+}
+
+async function closeTabConfirmed(id) {
+  if (editorDirty(id)) {
+    const e = state.editors.get(id)
+    const ok = await confirm({
+      title: '放弃未保存的修改？',
+      message: `“${e.name}” 有未保存的修改，关闭标签后无法恢复。`,
+      okText: '放弃并关闭',
+    })
+    if (ok !== true) return
+  }
   // T4：先杀掉该标签绑定的终端（WS close → 服务端立即结束 PTY），再删标签
   removeTerm(id)
+  dropEditor(id)
   const idx = state.tabs.findIndex((t) => t.id === id)
   state.tabs.splice(idx, 1)
   if (state.activeTabId === id) {
     const next = state.tabs[Math.min(idx, state.tabs.length - 1)]
     state.activeTabId = next.id
+    // 切到新标签：该标签若没有编辑会话则退出编辑视图
+    if (state.view === 'editor' && !state.editors.has(next.id)) state.view = 'files'
   }
   saveState()
 }
@@ -133,6 +168,8 @@ export function switchTab(id) {
   if (!tab) return
   exitMultiSelect()
   state.activeTabId = id
+  // 编辑视图中切标签：目标标签有编辑会话则继续显示编辑视图，否则回文件视图
+  if (state.view === 'editor' && !state.editors.has(id)) state.view = 'files'
   if (!tab.cache) {
     // 无缓存（恢复后首次切换）才请求
     apiList(tab.path)

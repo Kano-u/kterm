@@ -1,8 +1,10 @@
 <script setup>
 import { ask } from '../dialog.js'
 import { doRename, confirmDelete } from '../actions.js'
-import { fmtSize, fmtTime } from '../store.js'
+import { fmtSize, fmtTime, activeTab } from '../store.js'
 import { activeBusy } from '../terminal.js'
+import { openEditor } from '../editor.js'
+import { isTextName } from '../editor-lang.js'
 import Icon from './Icon.vue'
 import { fileIcon } from '../icons.js'
 
@@ -10,6 +12,17 @@ const props = defineProps({
   entry: { type: Object, required: true },
 })
 const emit = defineEmits(['close'])
+
+/* 仅文本文件可编辑（仿终端 running 锁定：终端运行中不开放写操作） */
+function canEdit() {
+  return !props.entry.isDir && isTextName(props.entry.name)
+}
+
+async function onEdit() {
+  const entry = props.entry
+  emit('close')
+  await openEditor(activeTab(), entry)
+}
 
 async function onRename() {
   const entry = props.entry
@@ -67,6 +80,16 @@ async function onDelete() {
             @click="emit('close')"
           >
             关闭
+          </button>
+          <button
+            v-if="canEdit()"
+            class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-primary transition-opacity disabled:pointer-events-none disabled:opacity-35"
+            :disabled="activeBusy()"
+            :title="activeBusy() ? '终端正在运行命令' : '编辑'"
+            @click="onEdit"
+          >
+            <Icon name="edit_document" :size="20" />
+            编辑
           </button>
           <button
             class="state-layer flex h-12 flex-none items-center gap-1.5 rounded-full px-5 text-sm font-medium text-error transition-opacity disabled:pointer-events-none disabled:opacity-35"

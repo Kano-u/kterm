@@ -270,7 +270,7 @@ export function anyBusy() {
   return false
 }
 
-/* 视图切换：进入终端视图时惰性建连 */
+/* 视图切换：进入终端视图时惰性建连（进入编辑器视图时终端只保持已有连接）。 */
 export function setView(view) {
   state.view = view
   if (view === 'term') {

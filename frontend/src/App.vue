@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
 import Tabbar from './components/Tabbar.vue'
 import Taskbar from './components/Taskbar.vue'
 import Toolbar from './components/Toolbar.vue'
@@ -22,9 +22,15 @@ import {
   isSettingsState, restoreSettingsState, setSettingsExitHook,
 } from './settingsnav.js'
 import { setRootDir, setNavigateTab, anyBusy, setView } from './terminal.js'
+import { anyDirty } from './editor.js'
 import { loadSettings } from './settings.js'
 import { initViewportWatch } from './viewport.js'
 import { keyBarVisible } from './keybar.js'
+
+/* 编辑器内核（CodeMirror）按需懒加载：只有真的打开过编辑器才会下载该 chunk。
+ * 未打开时状态里没有任何编辑会话，v-if 保证组件根本不挂载。 */
+const EditorView = defineAsyncComponent(() => import('./components/EditorView.vue'))
+const editorMounted = computed(() => state.editors.size > 0)
 
 /* terminal.js ←→ actions.js 双向依赖：由本处一次性注入导航回调，避免循环导入。
  * 终端 OSC 7 上报 → 文件页跟随（fromTerminal 阻断回注 cd，防回环）。 */
@@ -48,14 +54,16 @@ function onPop(ev) {
   onPopState(ev, restorePath)
 }
 
-/* T4：有终端正在运行命令时拦截刷新/关闭浏览器页；
+/* T4/E4：终端运行中 / 编辑器有未保存修改时拦截刷新与关闭浏览器页；
  * 设置子页有未保存改动时的拦截由该子页自行注册。 */
 function onBeforeUnload(ev) {
-  if (anyBusy()) {
-    ev.preventDefault()
-    ev.returnValue = '终端正在运行命令，确定离开吗？'
-    return ev.returnValue
-  }
+  let msg = ''
+  if (anyBusy()) msg = '终端正在运行命令，确定离开吗？'
+  else if (anyDirty()) msg = '有未保存的编辑内容，确定离开吗？'
+  if (!msg) return
+  ev.preventDefault()
+  ev.returnValue = msg
+  return ev.returnValue
 }
 
 /* 启动：恢复状态 → 校验各 tab 路径 → 注册返回手势 */
@@ -87,10 +95,12 @@ onMounted(async () => {
   }
 
   /* 刷新时若停在设置页：history.state 在刷新后保留，据此还原页面层级
-   * （用 replaceState 写回同一记录，返回手势仍回到进入设置前的视图）。 */
+   * （用 replaceState 写回同一记录，返回手势仍回到进入设置前的视图）。
+   * 编辑会话不持久化（与终端一致）：刷新后回到文件视图。 */
   if (isSettingsState(history.state)) {
     restoreSettingsState(history.state)
   } else {
+    state.view = 'files'
     const act = activeTab()
     history.replaceState({ tabId: act.id, path: act.path }, '')
   }
@@ -116,6 +126,9 @@ onUnmounted(() => {
     <!-- 文件视图与终端视图互斥；终端层叠保留会话（v-show 由组件内部管理） -->
     <FileList v-show="state.view === 'files'" />
     <TerminalView v-show="state.view === 'term'" />
+
+    <!-- 编辑器：懒加载 chunk 仅在存在编辑会话时挂载（层叠保留 doc，见 EditorView） -->
+    <EditorView v-if="editorMounted" v-show="state.view === 'editor'" />
 
     <!-- 设置：列表页 + 各设置项的独立子页 -->
     <SettingsView v-if="state.view === 'settings' && !state.settingsPage" />

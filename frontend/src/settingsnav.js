@@ -13,8 +13,13 @@
  */
 import { state } from './store.js'
 
-/* 进入设置页之前的视图（'files' | 'term'），退出设置时还原 */
+/* 进入设置页之前的视图（'files' | 'term' | 'editor'），退出设置时还原 */
 let viewBefore = 'files'
+
+/* 合法视图名判定：非设置视图都原样保留（含 E 系列的 editor） */
+function normView(v) {
+  return v === 'term' || v === 'editor' ? v : 'files'
+}
 
 /* 当前压在设置页记录上的层数：0 = 不在设置页，1 = 列表页，2 = 子页 */
 let pushed = 0
@@ -71,7 +76,7 @@ function finish(view) {
   pendingView = null
   guardPassed = false
   state.settingsPage = ''
-  viewBefore = view === 'term' ? 'term' : 'files'
+  viewBefore = normView(view)
   if (exitHook) exitHook(viewBefore)
   else state.view = viewBefore
 }
@@ -82,7 +87,7 @@ export function enterSettings() {
     if (state.settingsPage) backSettings()
     return
   }
-  viewBefore = state.view === 'term' ? 'term' : 'files'
+  viewBefore = normView(state.view)
   state.view = 'settings'
   state.settingsPage = ''
   pushed = 1
@@ -114,11 +119,11 @@ export async function backSettings() {
   else finish(viewBefore)
 }
 
-/* 从设置页直接切到文件/终端视图：一次退掉所有设置页记录 */
+/* 从设置页直接切到文件/终端/编辑视图：一次退掉所有设置页记录 */
 export async function leaveSettings(view) {
   if (!(await canLeaveSettings())) return false
   markGuardPassed()
-  pendingView = view === 'term' ? 'term' : 'files'
+  pendingView = normView(view)
   viewBefore = pendingView
   if (pushed > 0) history.go(-pushed)
   else finish(pendingView)
@@ -141,7 +146,7 @@ export function applySettingsState(s) {
 /* 刷新时停在设置页：还原层级并用 replaceState 写回同一记录（不新增历史） */
 export function restoreSettingsState(s) {
   const page = (s && s.settings) || ''
-  if (s && typeof s.from === 'string') viewBefore = s.from === 'term' ? 'term' : 'files'
+  if (s && typeof s.from === 'string') viewBefore = normView(s.from)
   state.view = 'settings'
   state.settingsPage = page
   pushed = depthOf(page)
