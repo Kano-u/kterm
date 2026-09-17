@@ -17,7 +17,8 @@ type Entry struct {
 // TrashDirName 回收站目录名，列表中永远排除。
 const TrashDirName = ".kfm-trash"
 
-// List 读取 dir（相对 root）下的条目。排除 .kfm-trash，不排序不过滤隐藏文件。
+// List 读取 dir（相对 root）下的条目。排除内部条目（回收站、设置文件），
+// 不排序不过滤隐藏文件。
 func (r *Root) List(rel string) ([]Entry, error) {
 	full, err := r.Resolve(rel)
 	if err != nil {
@@ -37,7 +38,7 @@ func (r *Root) List(rel string) ([]Entry, error) {
 	entries := make([]Entry, 0, len(dirents))
 	for _, d := range dirents {
 		name := d.Name()
-		if name == TrashDirName {
+		if reservedName(name) {
 			continue
 		}
 		e := Entry{Name: name, IsDir: d.IsDir()}

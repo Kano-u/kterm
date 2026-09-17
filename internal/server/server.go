@@ -22,6 +22,8 @@ func New(port int, allowLAN bool) http.Handler {
 
 	mux.HandleFunc("GET /api/list", handleList)
 	mux.HandleFunc("GET /api/root", handleRoot)
+	mux.HandleFunc("GET /api/settings", handleSettingsGet)
+	mux.HandleFunc("POST /api/settings", handleSettingsPost)
 	mux.HandleFunc("GET /api/search", handleSearch)
 	mux.HandleFunc("POST /api/mkdir", handleMkdir)
 	mux.HandleFunc("POST /api/create", handleCreate)

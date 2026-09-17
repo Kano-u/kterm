@@ -57,8 +57,11 @@ func (r *Root) Search(ctx context.Context, rel, q string) (*SearchResult, error)
 			return filepath.SkipAll
 		}
 		name := d.Name()
-		if d.IsDir() && name == TrashDirName {
-			return filepath.SkipDir // 回收站不参与搜索
+		if d.IsDir() && reservedName(name) {
+			return filepath.SkipDir // 回收站 / 内部目录不参与搜索
+		}
+		if !d.IsDir() && reservedName(name) {
+			return nil // 设置文件等内部文件不作为搜索结果
 		}
 		if p == full {
 			return nil // 起点目录本身不参与匹配，但要递归进入
