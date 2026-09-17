@@ -43,27 +43,8 @@ export async function navigateTab(tab, path, opts = {}) {
   }
 }
 
-/* 沿 tab 自身历史前进/后退（工具栏 ‹ ›） */
-export async function tabGo(delta) {
-  const tab = activeTab()
-  exitMultiSelect()
-  const idx = tab.histIdx + delta
-  if (idx < 0 || idx >= tab.history.length) return
-  const target = tab.history[idx]
-  try {
-    const data = await apiList(target)
-    tab.histIdx = idx
-    tab.path = data.path || target
-    tab.cache = { path: tab.path, entries: data.entries || [] }
-    history.pushState({ tabId: tab.id, path: tab.path }, '')
-    saveState()
-    syncTerminalCd(tab)
-  } catch (err) {
-    toast(err.message)
-  }
-}
-
-/* Android 返回手势 / 浏览器后退：恢复对应 tab 的上一路径 */
+/* Android 返回手势 / 浏览器后退：恢复对应 tab 的上一路径（前进由浏览器自身的历史栈承担，
+ * 页面内不再提供前进/后退按钮） */
 export function onPopState(ev, restorePath) {
   const s = ev.state
   let tab = null

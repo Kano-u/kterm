@@ -30,8 +30,8 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
         ├── actions.js      # 导航/标签/操作/剪贴板动作
         ├── api.js          # fetch 封装
         ├── dialog.js / confirm.js / toast.js / loading.js
-        └── components/      # Tabbar/Toolbar/Sortbar/FileList/SelectBar/PasteBar/
-                            # NavBtns/Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
+        └── components/      # Tabbar/Toolbar（含排序行）/FileList/SelectBar/PasteBar/
+                            # Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
                             # （T1 起新增 Taskbar/TerminalView）
 ```
 

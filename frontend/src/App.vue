@@ -3,12 +3,10 @@ import { onMounted, onUnmounted } from 'vue'
 import Tabbar from './components/Tabbar.vue'
 import Taskbar from './components/Taskbar.vue'
 import Toolbar from './components/Toolbar.vue'
-import Sortbar from './components/Sortbar.vue'
 import FileList from './components/FileList.vue'
 import TerminalView from './components/TerminalView.vue'
 import SelectBar from './components/SelectBar.vue'
 import PasteBar from './components/PasteBar.vue'
-import NavBtns from './components/NavBtns.vue'
 import Toast from './components/Toast.vue'
 import Loading from './components/Loading.vue'
 import NameDialog from './components/NameDialog.vue'
@@ -84,7 +82,6 @@ onUnmounted(() => {
     <Tabbar />
     <template v-if="state.view === 'files'">
       <Toolbar />
-      <Sortbar />
     </template>
 
     <!-- 文件视图与终端视图互斥；终端层叠保留会话（v-show 由组件内部管理） -->
@@ -96,9 +93,6 @@ onUnmounted(() => {
       <SelectBar />
       <PasteBar />
     </template>
-
-    <!-- 导航 FAB（仅文件视图） -->
-    <NavBtns v-if="state.view === 'files'" />
 
     <!-- 底部任务栏：文件 | 终端 -->
     <Taskbar />

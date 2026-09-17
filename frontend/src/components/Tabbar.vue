@@ -18,7 +18,7 @@ function locked(id) {
     <div
       v-for="t in state.tabs"
       :key="t.id"
-      class="ripple state-layer flex max-w-[38vw] flex-none cursor-pointer items-center gap-1 rounded-full py-2 pl-4 pr-1.5 transition-colors"
+      class="ripple state-layer flex max-w-[38vw] flex-none cursor-pointer items-center gap-1 rounded-none py-2 pl-3 pr-1.5 transition-colors"
       :class="
         t.id === state.activeTabId
           ? 'bg-primary-container text-on-primary-container'
@@ -45,7 +45,7 @@ function locked(id) {
       </button>
     </div>
     <button
-      class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-full text-primary"
+      class="state-layer flex h-10 w-10 flex-none items-center justify-center rounded-none text-primary"
       title="新建标签"
       @click="addTab()"
     >
