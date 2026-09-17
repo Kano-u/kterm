@@ -173,16 +173,19 @@ export function setRootDir(abs) {
   rootDir = abs || ''
 }
 
-/* abs（绝对路径）→ 相对 root 路径；不在 root 内返回 null */
+/* abs（绝对路径）→ 相对 root 路径；不在 root 内返回 null。
+ * Windows 下 /api/root 返回的 root 与 OSC 7 上报的 cwd 可能大小写不一致
+ * （如 c:\users 与 C:\Users），比较时统一小写；路径本身不参与展示。 */
 export function absToRel(abs) {
   if (!rootDir) return null
   // rootDir 与 abs 均为 OS 原生分隔符；先统一分隔符再比较
-  const norm = (s) => s.replace(/\\/g, '/')
+  const norm = (s) => s.replace(/\\/g, '/').toLowerCase()
   const root = norm(rootDir).replace(/\/$/, '')
   const p = norm(abs)
   if (p === root) return ''
   if (p.startsWith(root + '/')) {
-    return p.slice(root.length + 1)
+    // 返回值用原 abs 截取（保留真实大小写），分隔符统一为 '/'
+    return abs.slice(rootDir.length).replace(/^[/\\]+/, '').replace(/\\/g, '/')
   }
   return null
 }

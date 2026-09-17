@@ -52,8 +52,14 @@ function onPointerup() {
   }
 }
 
-/* 列表变化时同步多选集合（删除/粘贴后自动清掉已不存在的选中项） */
-watch(shown, pruneSelection, { flush: 'sync' })
+/* 列表变化时同步多选集合（删除/粘贴后自动清掉已不存在的选中项）。
+ * 直接 watch 当前 tab 的缓存引用：缓存每次导航/刷新都是新数组，
+ * 比 watch(shown) 的 getter 更直白（后者每次返回新数组引用，必触发）。 */
+watch(
+  () => { const t = tab(); return t.cache && t.cache.path === t.path ? t.cache.entries : null },
+  (entries) => pruneSelection(entries || []),
+  { flush: 'sync' },
+)
 
 onUnmounted(() => {
   document.removeEventListener('pointermove', cancelPress)

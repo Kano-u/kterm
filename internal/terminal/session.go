@@ -53,6 +53,8 @@ type Session struct {
 	capTimer         *time.Timer
 
 	// pushFrame 的目标：当前连接持有的回调（Serve 时设置），无连接时为 nil。
+	// frameMu 保护 frameSink 的读写（与 busy 计时器 / watchExit 并发）。
+	frameMu    sync.Mutex
 	frameSink func(b []byte)
 
 	// closeOnce 保证退出清理只执行一次（WS 断开 / shell 退出双触发路径）。
@@ -146,12 +148,12 @@ func (s *Session) launch() error {
 // Serve 进入会话主循环：启动输出泵与退出监听，循环读取 WS 输入。
 // 返回即表示连接结束，调用方负责清理（杀 PTY + 从 manager 移除）。
 func (s *Session) Serve(ws wsConn) {
-	s.frameSink = func(b []byte) { _ = ws.Write(websocket.MessageText, b) }
+	s.setFrameSink(func(b []byte) { _ = ws.Write(websocket.MessageText, b) })
 	s.pushShellInfo()
 	go s.pumpOutput(ws)
 	go s.watchExit(ws)
 
-	defer func() { s.frameSink = nil }()
+	defer func() { s.setFrameSink(nil) }()
 	for {
 		msgType, data, err := ws.Read()
 		if err != nil {
@@ -293,9 +295,19 @@ func (s *Session) onOSC133(start bool) {
 
 // pushFrame 把一条 text 帧写到当前连接（Serve 时绑定）；无连接时丢弃。
 func (s *Session) pushFrame(b []byte) {
-	if f := s.frameSink; f != nil {
+	s.frameMu.Lock()
+	f := s.frameSink
+	s.frameMu.Unlock()
+	if f != nil {
 		f(b)
 	}
+}
+
+// setFrameSink 绑定/解绑当前连接的写帧回调。
+func (s *Session) setFrameSink(f func(b []byte)) {
+	s.frameMu.Lock()
+	s.frameSink = f
+	s.frameMu.Unlock()
 }
 
 // Cwd 返回会话最新工作目录（绝对路径）。

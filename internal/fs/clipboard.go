@@ -50,7 +50,7 @@ func conflictName(dir, name string) (string, error) {
 	return "", fmt.Errorf("无法为 %s 生成可用名称", name)
 }
 
-// copyFile 复制单个文件（保留 mode）。
+// copyFile 复制单个文件（保留 mode 与 mtime）。
 func copyFile(src, dst string, info os.FileInfo) error {
 	srcF, err := os.Open(src)
 	if err != nil {
@@ -69,6 +69,11 @@ func copyFile(src, dst string, info os.FileInfo) error {
 	if err := dstF.Close(); err != nil {
 		os.Remove(dst)
 		return err
+	}
+	// 保留原文件 mtime，避免按修改时间排序时复制件涌到顶部
+	if err := os.Chtimes(dst, info.ModTime(), info.ModTime()); err != nil {
+		// 不因时间戳失败而报错（文件内容已完整复制）
+		_ = err
 	}
 	return nil
 }

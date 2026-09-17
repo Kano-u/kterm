@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"syscall"
 
 	"kfm/internal/fs"
 	"kfm/internal/terminal"
@@ -26,14 +27,23 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 // errToHTTP 将 fs 层错误映射为 HTTP 状态码与中文消息。
 func errToHTTP(w http.ResponseWriter, err error) {
+	var pe *os.PathError
 	switch {
 	case errors.Is(err, fs.ErrEditConflict):
 		writeErr(w, http.StatusConflict, fs.ErrEditConflict.Error())
 	case errors.Is(err, fs.ErrNotDir):
 		writeErr(w, http.StatusBadRequest, "目标不是目录")
+	case errors.As(err, &pe) && errors.Is(pe.Err, os.ErrNotExist):
+		writeErr(w, http.StatusNotFound, "路径不存在: "+path.Base(pe.Path))
 	case errors.Is(err, os.ErrNotExist):
-		writeErr(w, http.StatusNotFound, "路径不存在: "+path.Base(err.(*os.PathError).Path))
+		writeErr(w, http.StatusNotFound, "路径不存在")
 	default:
+		// 磁盘满等系统级 IO 错误按 5xx 返回，便于排查
+		var se *os.SyscallError
+		if errors.As(err, &se) && (errors.Is(se.Err, syscall.ENOSPC) || errors.Is(se.Err, syscall.EIO)) {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		writeErr(w, http.StatusBadRequest, err.Error())
 	}
 }
@@ -91,6 +101,8 @@ type renameReq struct {
 }
 
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) bool {
+	// 兜底限制请求体大小：写接口内容上限 2 MB，其余端点远小于此
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
 		writeErr(w, http.StatusBadRequest, "请求格式错误")
 		return false

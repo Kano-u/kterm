@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { apiGet } from '../api.js'
-import { fmtTime, fmtSize, iconFor } from '../store.js'
+import { fmtTime, fmtSize } from '../store.js'
 import { restoreBatch, purgeBatch, emptyTrash } from '../actions.js'
 import { confirm } from '../confirm.js'
 import { toast } from '../toast.js'

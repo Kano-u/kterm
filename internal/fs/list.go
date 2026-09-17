@@ -2,8 +2,6 @@ package fs
 
 import (
 	"os"
-	"path/filepath"
-	"sort"
 )
 
 // Entry 目录条目。
@@ -48,7 +46,7 @@ func (r *Root) List(rel string) ([]Entry, error) {
 		}
 		entries = append(entries, e)
 	}
-	// 稳定输出：按名称排序（前端再做自定义排序）
-	sort.Slice(entries, func(i, j int) bool { return filepath.Base(entries[i].Name) < filepath.Base(entries[j].Name) })
+	// 不排序：前端必然按自己的 collator 重排（目录优先/拼音/自然序），
+	// 服务端排序结果会被完全丢弃。
 	return entries, nil
 }

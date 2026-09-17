@@ -8,7 +8,9 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"runtime"
 	"strconv"
+	"time"
 
 	"kfm/internal/server"
 )
@@ -16,7 +18,7 @@ import (
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8080", "监听地址")
 	open := flag.Bool("open", true, "启动时尝试打开浏览器")
-	lan := flag.Bool("lan", true, "允许局域网设备访问（默认开启，监听所有网卡；-lan=false 关闭）")
+	lan := flag.Bool("lan", false, "允许局域网设备访问（默认关闭，仅本机；-lan 监听所有网卡）")
 	flag.Parse()
 
 	host, portStr, err := net.SplitHostPort(*addr)
@@ -32,7 +34,8 @@ func main() {
 	fmt.Println("kfm 服务已启动:", url)
 	fmt.Println("根目录:", server.RootDir())
 
-	// 局域网模式：默认监听地址仅本机时改为监听所有网卡，并打印当前 IP 地址
+	// 局域网模式：默认监听地址仅本机时改为监听所有网卡，并打印当前 IP 地址。
+	// hostCheck 在 LAN 模式下仍会校验 Host 必须命中本机的某个地址，防 DNS rebinding。
 	listenAddr := *addr
 	if *lan {
 		if host == "127.0.0.1" || host == "localhost" {
@@ -48,16 +51,42 @@ func main() {
 	}
 
 	if *open {
-		// best-effort 打开浏览器（Termux: termux-open-url），失败忽略
+		// best-effort 打开浏览器，失败忽略
 		go func() {
-			cmd := exec.Command("termux-open-url", url)
-			if err := cmd.Run(); err != nil {
+			if err := openBrowser(url); err != nil {
 				log.Printf("自动打开浏览器失败（可手动访问 %s）: %v", url, err)
 			}
 		}()
 	}
 
-	log.Fatal(http.ListenAndServe(listenAddr, server.New(port, *lan)))
+	log.Fatal(newServer(listenAddr, server.New(port, *lan)).ListenAndServe())
+}
+
+// newServer 构造带基础超时参数的 http.Server，防止慢客户端/半开连接长期占用。
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+}
+
+// openBrowser 按平台打开默认浏览器（best-effort）。
+func openBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "android":
+		// Termux 环境
+		cmd = exec.Command("termux-open-url", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Run()
 }
 
 // lanIPs 枚举本机网卡上的私有网络 IPv4 地址（用于提示局域网访问地址）。

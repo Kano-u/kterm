@@ -38,15 +38,24 @@ func New(port int, allowLAN bool) http.Handler {
 	mux.HandleFunc("POST /api/write", handleWrite)
 	mux.HandleFunc("GET /api/term/ws", terminal.HandleWS(terminal.DefaultManager))
 
-	// 静态资源
+	// 静态资源：/assets/* 文件名带内容 hash，可永久缓存；index.html 永远不缓存
 	sub, _ := fs.Sub(webFS, "web")
 	fileServer := http.FileServer(http.FS(sub))
-	mux.Handle("GET /assets/", http.StripPrefix("/assets/", neuterDirList(fileServer)))
+	mux.Handle("GET /assets/", cacheImmutable(http.StripPrefix("/assets/", neuterDirList(fileServer))))
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
 		serveAsset(w, r, sub, "index.html")
 	})
 
 	return hostCheck(port, allowLAN)(mux)
+}
+
+// cacheImmutable 为带内容 hash 的静态资源设置一年不可变缓存。
+func cacheImmutable(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // neuterDirList 禁止目录列表。
@@ -70,14 +79,10 @@ func serveAsset(w http.ResponseWriter, r *http.Request, fsys fs.FS, name string)
 	w.Write(data)
 }
 
-// hostCheck 中间件：默认仅允许 localhost / 127.0.0.1 / [::1]:port；
-// allowLAN 时放行所有来源（配合 -lan 监听所有网卡使用）。
+// hostCheck 中间件：默认仅允许 localhost / 127.0.0.1 / [::1]；
+// allowLAN 时额外放行本机各网卡的地址（配合 -lan 监听所有网卡使用）。
+// 两种模式都拒绝任意 Host，防 DNS rebinding。
 func hostCheck(port int, allowLAN bool) func(http.Handler) http.Handler {
-	if allowLAN {
-		return func(next http.Handler) http.Handler {
-			return next
-		}
-	}
 	allowed := map[string]bool{
 		"localhost": true,
 		"127.0.0.1": true,
@@ -87,6 +92,32 @@ func hostCheck(port int, allowLAN bool) func(http.Handler) http.Handler {
 		net.JoinHostPort("127.0.0.1", strconv.Itoa(port)): true,
 		net.JoinHostPort("::1", strconv.Itoa(port)):       true,
 	}
+	if allowLAN {
+		// 本机全部网卡地址加入白名单（含回环）
+		if ifaces, err := net.Interfaces(); err == nil {
+			for _, iface := range ifaces {
+				if iface.Flags&net.FlagUp == 0 {
+					continue
+				}
+				addrs, err := iface.Addrs()
+				if err != nil {
+					continue
+				}
+				for _, a := range addrs {
+					ipNet, ok := a.(*net.IPNet)
+					if !ok {
+						continue
+					}
+					ip := ipNet.IP
+					if ip4 := ip.To4(); ip4 != nil {
+						ip = ip4
+					}
+					allowed[ip.String()] = true
+					allowed[net.JoinHostPort(ip.String(), strconv.Itoa(port))] = true
+				}
+			}
+		}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			host := r.Host
@@ -95,7 +126,7 @@ func hostCheck(port int, allowLAN bool) func(http.Handler) http.Handler {
 			}
 			host = strings.Trim(host, "[]")
 			host = strings.ToLower(host)
-			if !allowed[host] && host != "localhost" && host != "127.0.0.1" && host != "::1" {
+			if !allowed[host] {
 				http.Error(w, `{"error":"禁止访问：仅允许本机访问"}`, http.StatusForbidden)
 				return
 			}

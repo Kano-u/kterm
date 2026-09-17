@@ -156,26 +156,39 @@ export function sortEntries(entries, sort) {
   })
 }
 
-/* 当前 tab 过滤 + 排序后的可见条目 */
+/* 当前 tab 过滤 + 排序后的可见条目。
+ * 记忆化：目录上千条目时每次重渲染不必重复 filter+sort。
+ * key 由缓存数组引用 + 排序参数 + 隐藏开关构成，依赖未变直接返回旧数组
+ * （tab.cache 每次导航/刷新都是新数组引用，引用比较即可感知变化）。 */
+let _shownKey = null
+let _shownVal = []
 export function shownEntries() {
   const tab = activeTab()
-  const entries = tab.cache && tab.cache.path === tab.path ? tab.cache.entries : []
-  return sortEntries(
-    entries.filter((e) => state.showHidden || !isHidden(e.name)),
-    state.sort,
-  )
+  const entries = tab.cache && tab.cache.path === tab.path ? tab.cache.entries : null
+  const key = entries + '|' + state.sort.field + '|' + state.sort.asc + '|' + state.showHidden
+  if (_shownKey === key) return _shownVal
+  if (!entries) {
+    _shownKey = null
+    return (_shownVal = [])
+  }
+  const shown = entries.filter((e) => state.showHidden || !isHidden(e.name))
+  _shownKey = key
+  return (_shownVal = sortEntries(shown, state.sort))
 }
 
 /* ---------- 搜索 ---------- */
 
-/* 搜索模式（搜索结果页）的可见条目：结果同样按当前排序生效 */
+/* 搜索模式（搜索结果页）的可见条目：结果同样按当前排序生效。同样记忆化。 */
+let _searchKey = null
+let _searchVal = []
 export function shownSearchResults() {
   const s = state.search
   if (!s.results) return []
-  return sortEntries(
-    s.results.filter((h) => state.showHidden || !isHidden(h.name)),
-    state.sort,
-  )
+  const key = s.results + '|' + state.sort.field + '|' + state.sort.asc + '|' + state.showHidden
+  if (_searchKey === key) return _searchVal
+  const shown = s.results.filter((h) => state.showHidden || !isHidden(h.name))
+  _searchKey = key
+  return (_searchVal = sortEntries(shown, state.sort))
 }
 
 export function resetSearch() {
@@ -239,15 +252,4 @@ export function fmtTime(ms) {
   const d = new Date(ms)
   const p = (x) => String(x).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-}
-
-export function iconFor(e) {
-  if (e.isDir) return '📁'
-  if (/\.(png|jpe?g|gif|webp|bmp|svg|heic)$/i.test(e.name)) return '🖼️'
-  return '📄'
-}
-
-/* Tab 标题：label + dirty */
-export function tabTitle(t) {
-  return t.path === activeTab().path ? '' : '● '
 }

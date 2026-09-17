@@ -1,5 +1,5 @@
 <script setup>
-import { state, baseName, tabTitle } from '../store.js'
+import { state, baseName } from '../store.js'
 import { addTab, closeTab, switchTab } from '../actions.js'
 import { isBusy } from '../terminal.js'
 import Icon from './Icon.vue'
@@ -29,7 +29,6 @@ function locked(id) {
       "
       @click="switchTab(t.id)"
     >
-      <span v-if="tabTitle(t)" class="material-symbols-outlined flex-none text-primary" style="font-size: 8px">circle</span>
       <span
         v-if="locked(t.id)"
         class="material-symbols-outlined flex-none animate-spin text-primary"
