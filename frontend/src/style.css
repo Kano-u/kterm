@@ -94,27 +94,36 @@
   right: max(var(--term-gutter), env(safe-area-inset-right, 0px));
 }
 
-/* ---------- M3 状态层（hover/press 反馈） ---------- */
-.state-layer {
-  position: relative;
-  isolation: isolate;
-}
-.state-layer::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: currentColor;
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-  z-index: -1;
-}
-.state-layer:hover::after {
-  opacity: 0.08;
-}
-.state-layer:active::after {
-  opacity: 0.12;
+/* ---------- M3 状态层（hover/press 反馈） ----------
+ * 必须放在 @layer components 里。若写成无层级的顶层规则，编译产物中它会排在
+ * @layer utilities 之后，而同为特异性 (0,1,0) 的 position:relative 会静默盖掉
+ * 元素上的 absolute / fixed / sticky —— 表现是「写了 absolute right-3 top-2
+ * 却仍停在原地（左侧）」。放进 components 层后，utilities 层总能胜出，
+ * 定位交给调用方显式声明，同时下面 60+ 个只写 state-layer 的按钮行为不变。
+ * isolation 同理保留：让 ::after 的 z-index:-1 自建层叠上下文，既不遮住
+ * 内部图标文字，又能压住自身背景与 border。 */
+@layer components {
+  .state-layer {
+    position: relative;
+    isolation: isolate;
+  }
+  .state-layer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: currentColor;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    z-index: -1;
+  }
+  .state-layer:hover::after {
+    opacity: 0.08;
+  }
+  .state-layer:active::after {
+    opacity: 0.12;
+  }
 }
 
 /* ---------- M3 涟漪效果 ---------- */

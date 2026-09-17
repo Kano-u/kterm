@@ -1,0 +1,19 @@
+/* 一份「故意写坏」的 CSS 产物，仅供 test/cascade.test.mjs 的自检使用。
+ *
+ * 复刻修复前的真实形态：.state-layer 是**无层级**的顶层规则，编译产物里排在
+ * @layer utilities 之后；它与 .absolute 特异性相同（0,1,0），于是 position:relative
+ * 静默盖掉 position:absolute —— 按钮写了 right-3 top-2 却停在普通流左侧。
+ *
+ * 用法（应打印失败，证明 cascade.test.mjs 真的能抓到回归）：
+ *   npm run test:cascade-negative
+ */
+@layer theme, base, components, utilities;
+
+@layer utilities {
+  .absolute { position: absolute }
+  .fixed { position: fixed }
+  .sticky { position: sticky }
+}
+
+.state-layer { position: relative; isolation: isolate }
+.state-layer::after { content: ''; position: absolute; inset: 0; z-index: -1 }
