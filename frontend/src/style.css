@@ -38,6 +38,11 @@
   --radius-m3: 28px;
 }
 
+:root {
+  /* 终端左右留白的基准宽度（曲面屏适配），见 .term-gutter */
+  --term-gutter: 12px;
+}
+
 /* ---------- 全局基础 ---------- */
 @layer base {
   html {
@@ -58,6 +63,23 @@
  * 由 touchscroll.js 统一处理拖动与惯性；否则 touchmove 不可取消。 */
 .term-touch {
   touch-action: none;
+}
+
+/* ---------- 终端左右留白（曲面屏 / 瀑布屏适配） ----------
+ * 这类屏幕两侧存在物理弯折，紧贴边缘的文字会被拉伸、偏色或直接落进弯折区，
+ * 所以把终端的可用宽度收窄一点。
+ * 实现要点：用 left/right 内缩的挂载层，而不是给容器加 padding。
+ * FitAddon 靠「父元素宽度」反推列数，而不带 padding 的盒子其内容盒
+ * 与边框盒同宽，getComputedStyle().width 的含义没有歧义，列数必然算对；
+ * 若改用 padding，一旦 box-sizing 为 border-box 就会多出几列而横向溢出。
+ * env(safe-area-inset-*) 与留白取较大值，兼顾横屏刘海/挖孔。
+ */
+.term-gutter {
+  /* 先给基础值，再叠加安全区（env() 不被支持时保留上面的值） */
+  left: var(--term-gutter);
+  right: var(--term-gutter);
+  left: max(var(--term-gutter), env(safe-area-inset-left, 0px));
+  right: max(var(--term-gutter), env(safe-area-inset-right, 0px));
 }
 
 /* ---------- M3 状态层（hover/press 反馈） ---------- */

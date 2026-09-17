@@ -48,9 +48,10 @@ const TERM_THEME = {
 
 function createXterm(tabId) {
   const el = document.createElement('div')
-  // term-touch 提供 touch-action: none，让浏览器不接管纵向手势，
-  // 否则 touchmove 会变成不可取消，触摸滚动无法生效（见 touchscroll.js）
-  el.className = 'absolute inset-0 term-touch'
+  // term-touch：touch-action: none，让浏览器不接管纵向手势，
+  //   否则 touchmove 会变成不可取消，触摸滚动无法生效（见 touchscroll.js）
+  // term-gutter：左右留白，避开曲面屏的物理弯折（见 style.css）
+  el.className = 'absolute inset-0 term-touch term-gutter'
   el.style.display = 'none'
   layersEl.value.appendChild(el)
 
