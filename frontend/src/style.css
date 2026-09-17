@@ -68,6 +68,15 @@
   touch-action: none;
 }
 
+/* 长按多选的容器：iOS 上长按会弹「拷贝/查询」气泡（-webkit-touch-callout），
+ * 把系统的长按手势抢掉，用户根本等不到 500ms 的长按回调。文件行已经
+ * select-none，这里再关掉 callout 才能让长按在我们手里。 */
+.longpress-area {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* ---------- 终端左右留白（曲面屏 / 瀑布屏适配） ----------
  * 这类屏幕两侧存在物理弯折，紧贴边缘的文字会被拉伸、偏色或直接落进弯折区，
  * 所以把终端的可用宽度收窄一点。

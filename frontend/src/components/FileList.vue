@@ -5,10 +5,11 @@ import Icon from './Icon.vue'
 import { fileIcon } from '../icons.js'
 import {
   state, activeTab, shownEntries, shownSearchResults, pruneSelection,
-  enterMultiSelect, exitMultiSelect, toggleSelect,
+  enterMultiSelect, toggleSelect,
   fmtSize, fmtTime, joinPath,
 } from '../store.js'
 import { navigate, gotoSearchHit } from '../actions.js'
+import { createLongPress } from '../longpress.js'
 
 const listEl = ref(null)
 const sheetEntry = ref(null)
@@ -16,40 +17,60 @@ const sheetEntry = ref(null)
 const shown = () => shownEntries()
 const tab = () => activeTab()
 
-/* 长按进入多选（500ms，移动即取消） */
-let pressTimer = null
-let pressMoved = false
+/* 长按进入多选：按住行不动 500ms → 进入多选并选中该行。
+ *
+ * 状态机在 longpress.js（见那里的注释：抖动容忍 + 吞掉补发的 click）。
+ * 两处细节必须遵守：
+ *   - 行点击的第一行先 consumeClick()，否则长按后抬手补发的 click 会把刚选中的
+ *     那一项再 toggle 掉，选中集合变空 → 多选栏瞬间消失（看起来就是「没反应」）；
+ *   - 滚动列表本身必须取消长按（手指按住在滚动容器上滑动时，pointermove 可能不够
+ *     触发 slop 却已经引起滚动）。 */
+const press = createLongPress({
+  onTrigger: (name) => {
+    if (navigator.vibrate) navigator.vibrate(30)
+    enterMultiSelect(name)
+  },
+})
 
 function onContextmenu(ev) {
   ev.preventDefault()
 }
 
 function onPointerdown(ev) {
-  const row = ev.target.closest('[data-row]')
-  if (!row || state.multi.active) return
-  pressMoved = false
-  const name = row.dataset.row
-  pressTimer = setTimeout(() => {
-    pressTimer = null
-    if (!pressMoved) {
-      if (navigator.vibrate) navigator.vibrate(30)
-      enterMultiSelect(name)
-    }
-  }, 500)
+  // 每次按下都先清掉残留（尤其是不带 click 收尾的 fired 标记）
+  press.reset()
+  if (state.multi.active) return
+  const t = ev.target
+  if (!t || typeof t.closest !== 'function') return
+  const el = t.closest('[data-row]')
+  if (!el) return
+  press.start({
+    key: el.dataset.row,
+    pointerId: ev.pointerId,
+    button: ev.button,
+    isPrimary: ev.isPrimary,
+    x: ev.clientX,
+    y: ev.clientY,
+  })
 }
 
-function cancelPress() {
-  pressMoved = true
-  if (pressTimer) {
-    clearTimeout(pressTimer)
-    pressTimer = null
-  }
+function onPointermove(ev) {
+  press.move(ev.clientX, ev.clientY, ev.pointerId)
 }
-function onPointerup() {
-  if (pressTimer) {
-    clearTimeout(pressTimer)
-    pressTimer = null
-  }
+
+function onPointerup(ev) {
+  press.end(ev.pointerId)
+}
+
+/* 手势被浏览器接管（转为滚动/缩放）→ 作废 */
+function cancelPress(ev) {
+  press.cancel(ev && ev.pointerId)
+}
+
+/* 列表滚动（拖动引起、或惯性滑行）→ 长按作废。
+ * slop 只能拦住「明显的拖动」，而按住时列表已经滚上去的情况同样不能选中。 */
+function onScroll() {
+  press.cancel()
 }
 
 /* 列表变化时同步多选集合（删除/粘贴后自动清掉已不存在的选中项）。
@@ -62,10 +83,13 @@ watch(
 )
 
 onUnmounted(() => {
-  document.removeEventListener('pointermove', cancelPress)
+  press.cancel()
 })
 
 function onClickRow(e) {
+  // 长按刚触发 → 这次 click 是抬手补发的，吞掉，否则会把选中项又取消掉。
+  // 传 e.name 限定只吞「同一行」的补发 click（抬手落到别的行不该被吞）。
+  if (press.consumeClick(e.name)) return
   const tab0 = tab()
   if (state.multi.active) {
     toggleSelect(e.name)
@@ -93,13 +117,13 @@ function hitSub(hit) {
 <template>
   <main
     ref="listEl"
-    class="relative flex-1 overflow-y-auto overscroll-contain"
+    class="longpress-area relative flex-1 overflow-y-auto overscroll-contain"
     @contextmenu="onContextmenu"
     @pointerdown="onPointerdown"
-    @pointermove="cancelPress"
+    @pointermove="onPointermove"
     @pointerup="onPointerup"
     @pointercancel="cancelPress"
-    @scroll.passive="cancelPress"
+    @scroll.passive="onScroll"
   >
     <!-- 搜索结果视图 -->
     <template v-if="state.search.active">
