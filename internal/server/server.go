@@ -34,6 +34,8 @@ func New(port int, allowLAN bool) http.Handler {
 	mux.HandleFunc("GET /api/trash", handleTrashList)
 	mux.HandleFunc("POST /api/trash/restore", handleTrashRestore)
 	mux.HandleFunc("POST /api/trash/purge", handleTrashPurge)
+	mux.HandleFunc("GET /api/read", handleRead)
+	mux.HandleFunc("POST /api/write", handleWrite)
 	mux.HandleFunc("GET /api/term/ws", terminal.HandleWS(terminal.DefaultManager))
 
 	// 静态资源

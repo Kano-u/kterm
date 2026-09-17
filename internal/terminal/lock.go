@@ -59,6 +59,16 @@ func (m *Manager) IsBusyPath(abs string) bool {
 // IsBusyPath 是 DefaultManager.IsBusyPath 的便捷入口（server 层使用）。
 func IsBusyPath(abs string) bool { return DefaultManager.IsBusyPath(abs) }
 
+// AddBusySessionForTest 直接注册一个处于 busy 状态、工作目录为 absCwd 的会话
+// （不启真实 PTY）。仅供测试构造「终端运行中」环境，生产代码不得调用。
+func (m *Manager) AddBusySessionForTest(tabID, absCwd string) *Session {
+	s := &Session{tabID: tabID, cwd: absCwd, mgr: m, busy: true, done: make(chan struct{})}
+	m.mu.Lock()
+	m.sessions[tabID] = s
+	m.mu.Unlock()
+	return s
+}
+
 // withinPath 判断 p 是否等于 dir 或位于 dir 之内（Windows 下大小写不敏感，
 // 由 filepath.Rel 的平台实现保证）。
 func withinPath(dir, p string) bool {

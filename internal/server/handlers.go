@@ -27,6 +27,8 @@ func writeJSON(w http.ResponseWriter, v any) {
 // errToHTTP 将 fs 层错误映射为 HTTP 状态码与中文消息。
 func errToHTTP(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, fs.ErrEditConflict):
+		writeErr(w, http.StatusConflict, fs.ErrEditConflict.Error())
 	case errors.Is(err, fs.ErrNotDir):
 		writeErr(w, http.StatusBadRequest, "目标不是目录")
 	case errors.Is(err, os.ErrNotExist):
@@ -302,4 +304,43 @@ func handleTrashPurge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, report)
+}
+
+// ---------- E1：编辑器读写端点 ----------
+//
+// 无任何服务端会话状态：GET 读文本、POST 覆盖写。
+// 编辑状态（dirty、撤销栈、高亮）完全在前端。
+
+func handleRead(w http.ResponseWriter, r *http.Request) {
+	rel := r.URL.Query().Get("path")
+	fc, err := root.ReadFile(rel)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, fc)
+}
+
+// writeReq 保存请求体：path / content / mtime（打开时读到的 mtime，用于冲突检测）。
+type writeReq struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+	MTime   int64  `json:"mtime"`
+}
+
+func handleWrite(w http.ResponseWriter, r *http.Request) {
+	var req writeReq
+	if !decodeBody(w, r, &req) {
+		return
+	}
+	// T3：终端 busy 时拒绝写入（与 copy/move 同一机制）
+	if rejectIfBusy(w, req.Path) {
+		return
+	}
+	mtime, err := root.WriteFile(req.Path, req.Content, req.MTime)
+	if err != nil {
+		errToHTTP(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true, "mtime": mtime})
 }
