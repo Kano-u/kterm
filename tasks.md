@@ -14,21 +14,21 @@
 
 ### 服务端
 
-- [ ] `manager.go`：会话注册表（map[tabID]*Session）+ 互斥锁，创建/查询/关闭/断连清理
-- [ ] `shell.go`：shell 探测（Windows: `pwsh.exe` → `powershell.exe` → `cmd.exe`；Unix: `$SHELL` → `bash` → `sh`）+ 启动参数
-- [ ] `session.go`：启动 PTY + shell，三个 goroutine（输出泵 / 输入泵 / 退出监听）
-- [ ] WS 协议：C→S `{"t":"i","d":...}` / `{"t":"resize","cols":..,"rows":..}`；S→C binary 输出帧 / `{"t":"exit"}`
-- [ ] WS 断开时杀死 PTY 并从 manager 移除
-- [ ] 初始工作目录：由 `fs.Resolve(relPath)` 得到，越界校验沿用现有逻辑
+- [x] `manager.go`：会话注册表（map[tabID]*Session）+ 互斥锁，创建/查询/关闭/断连清理
+- [x] `shell.go`：shell 探测（Windows: `pwsh.exe` → `powershell.exe` → `cmd.exe`；Unix: `$SHELL` → `bash` → `sh`）+ 启动参数
+- [x] `session.go`：启动 PTY + shell，三个 goroutine（输出泵 / 输入泵 / 退出监听）
+- [x] WS 协议：C→S `{"t":"i","d":...}` / `{"t":"resize","cols":..,"rows":..}`；S→C binary 输出帧 / `{"t":"exit"}`
+- [x] WS 断开时杀死 PTY 并从 manager 移除
+- [x] 初始工作目录：由 `fs.Resolve(relPath)` 得到，越界校验沿用现有逻辑
 
 ### 前端
 
-- [ ] `store.js`：新增 `state.view`（'files' | 'term'）与 `state.terminals`（Map，不持久化）
-- [ ] `components/Taskbar.vue`：底部任务栏，`文件` | `终端` 两个胶囊按钮，样式与 Tabbar 一致
-- [ ] `components/TerminalView.vue`：xterm 实例管理（层叠 + v-show，切回时 refit）、WebSocket 建连与消息分发、ResizeObserver + addon-fit、主题跟随暗色模式
-- [ ] `App.vue`：FileList 与 TerminalView 按 `state.view` 互斥渲染；Taskbar 固定底部；SelectBar/PasteBar/NavBtns 仅在文件视图显示
-- [ ] 进入终端视图：为当前激活文件标签自动建连（惰性创建会话）
-- [ ] 手测：能交互打字、看到 shell 输出、resize 生效（Windows + Linux）
+- [x] `store.js`：新增 `state.view`（'files' | 'term'）与 `state.terminals`（Map，不持久化）
+- [x] `components/Taskbar.vue`：底部任务栏，`文件` | `终端` 两个胶囊按钮，样式与 Tabbar 一致
+- [x] `components/TerminalView.vue`：xterm 实例管理（层叠 + v-show，切回时 refit）、WebSocket 建连与消息分发、ResizeObserver + addon-fit、主题跟随暗色模式
+- [x] `App.vue`：FileList 与 TerminalView 按 `state.view` 互斥渲染；Taskbar 固定底部；SelectBar/PasteBar/NavBtns 仅在文件视图显示
+- [x] 进入终端视图：为当前激活文件标签自动建连（惰性创建会话）
+- [x] 手测：能交互打字、看到 shell 输出、resize 生效（Windows + Linux）
 
 ## T2 双向目录同步
 

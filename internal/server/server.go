@@ -17,6 +17,7 @@ var webFS embed.FS
 
 // New 构造 HTTP handler。allowLAN 时放行任意 Host（局域网设备访问）。
 func New(port int, allowLAN bool) http.Handler {
+	terminal.Init(root)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/list", handleList)

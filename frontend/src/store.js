@@ -23,6 +23,8 @@ export const state = reactive({
   clipboard: null, // {mode:'copy'|'cut', srcPath, names[]}（不持久化）
   multi: { active: false, sel: new Set() }, // 多选（仅当前 tab，切换/导航时重置）
   search: { active: false, query: '', results: null, truncated: false, busy: false }, // 搜索（不持久化）
+  view: 'files', // 底部任务栏视图：'files' | 'term'（不持久化）
+  terminals: new Map(), // tabId -> {status,busy,outsideRoot,ws}（不持久化，见 terminal.js）
   bootError: '',
 })
 

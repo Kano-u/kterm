@@ -85,6 +85,7 @@ export async function addTab() {
   }
   state.tabs.push(tab)
   state.activeTabId = tab.id
+  state.view = 'files' // 新建标签默认进入文件视图（终端惰性创建，不跟随）
   history.pushState({ tabId: tab.id, path: '' }, '')
   saveState()
 }

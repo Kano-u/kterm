@@ -15,11 +15,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    // 开发模式：vite dev (5173) 代理 API 到 Go 服务 (8080)
+    // 开发模式：vite dev (5173) 代理 API 到 Go 服务 (8080)；ws:true 代理终端 WebSocket
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+        ws: true,
       },
     },
   },
