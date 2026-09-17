@@ -5,6 +5,8 @@ import Taskbar from './components/Taskbar.vue'
 import Toolbar from './components/Toolbar.vue'
 import FileList from './components/FileList.vue'
 import TerminalView from './components/TerminalView.vue'
+import KeyboardBar from './components/KeyboardBar.vue'
+import SettingsView from './components/SettingsView.vue'
 import SelectBar from './components/SelectBar.vue'
 import PasteBar from './components/PasteBar.vue'
 import Toast from './components/Toast.vue'
@@ -16,6 +18,9 @@ import { loadState, validateRestoredTabs, activeTab, state } from './store.js'
 import { apiList } from './api.js'
 import { onPopState, restorePath, navigateTab } from './actions.js'
 import { setRootDir, setNavigateTab, anyBusy } from './terminal.js'
+import { loadSettings } from './settings.js'
+import { initViewportWatch } from './viewport.js'
+import { keyBarVisible, keyBarHidable } from './keybar.js'
 
 /* terminal.js ←→ actions.js 双向依赖：由本处一次性注入导航回调，避免循环导入。
  * 终端 OSC 7 上报 → 文件页跟随（fromTerminal 阻断回注 cd，防回环）。 */
@@ -45,7 +50,13 @@ function onBeforeUnload(ev) {
 }
 
 /* 启动：恢复状态 → 校验各 tab 路径 → 注册返回手势 */
+let stopViewportWatch = () => {}
+
 onMounted(async () => {
+  // 设置与软键盘检测与文件列表无关，先并行发起（失败不影响主功能）
+  loadSettings()
+  stopViewportWatch = initViewportWatch()
+
   // T2：获取 root 绝对路径（终端 cwd abs → 相对路径换算用）；失败不影响主功能
   fetch('/api/root')
     .then((r) => (r.ok ? r.json() : null))
@@ -72,6 +83,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopViewportWatch()
   window.removeEventListener('popstate', onPop)
   window.removeEventListener('beforeunload', onBeforeUnload)
 })
@@ -87,6 +99,7 @@ onUnmounted(() => {
     <!-- 文件视图与终端视图互斥；终端层叠保留会话（v-show 由组件内部管理） -->
     <FileList v-show="state.view === 'files'" />
     <TerminalView v-show="state.view === 'term'" />
+    <SettingsView v-if="state.view === 'settings'" />
 
     <!-- 底部固定栏（多选与粘贴互斥显示，仅文件视图） -->
     <template v-if="state.view === 'files'">
@@ -94,7 +107,8 @@ onUnmounted(() => {
       <PasteBar />
     </template>
 
-    <!-- 底部任务栏：文件 | 终端 -->
+    <!-- 软键盘弹出（或常显）时，按键栏顶替底部任务栏 -->
+    <KeyboardBar v-if="keyBarVisible" />
     <Taskbar />
 
     <!-- 全局浮层 -->
