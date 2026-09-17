@@ -4,7 +4,7 @@ import {
   state, activeTab, saveState, newTab, exitMultiSelect, resetSearch,
 } from './store.js'
 import { confirm } from './confirm.js'
-import { sendCd, ensureUnlocked, ensureCloseable } from './terminal.js'
+import { sendCd, ensureUnlocked, ensureCloseable, removeTerm } from './terminal.js'
 
 /* 文件页导航成功后向该 tab 的终端注入 cd（T2 双向同步） */
 function syncTerminalCd(tab) {
@@ -113,6 +113,8 @@ export function closeTab(id) {
   if (state.tabs.length <= 1) return // 至少保留一个标签
   // T3：该标签的终端有命令在运行时拒绝关闭（toast 提示）
   if (!ensureCloseable(id)) return
+  // T4：先杀掉该标签绑定的终端（WS close → 服务端立即结束 PTY），再删标签
+  removeTerm(id)
   const idx = state.tabs.findIndex((t) => t.id === id)
   state.tabs.splice(idx, 1)
   if (state.activeTabId === id) {

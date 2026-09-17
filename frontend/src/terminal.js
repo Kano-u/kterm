@@ -93,13 +93,15 @@ export function connectTerminal(tab, handlers) {
 
 function onJsonMsg(tab, entry, msg, handlers) {
   switch (msg.t) {
-    case 'exit': // shell 退出（T4 完整处理；T1 先标记结束）
+    case 'exit': // T4：shell 退出 → 结束会话并清理
       entry.status = 'ended'
+      endSession(tab.id, '终端会话已结束')
       handlers.onExit && handlers.onExit(tab.id)
       break
-    case 'error':
+    case 'error': // 启动失败 / 被其他窗口占用（错误文案已 toast）
       toast(msg.d || '终端启动失败')
       entry.status = 'ended'
+      endSession(tab.id, null)
       handlers.onExit && handlers.onExit(tab.id)
       break
     case 'cwd':
@@ -115,6 +117,16 @@ function onJsonMsg(tab, entry, msg, handlers) {
     case 'busy': // T3：运行状态 → 运行锁定
       entry.busy = !!msg.on
       break
+  }
+}
+
+/* ---------- T4：会话结束处理 ----------
+ * shell exit / 连接被拒 / 启动失败后：若用户正停留在该标签的终端视图，
+ * 自动切回文件视图（msg 非空时给出提示），避免停留在空白的终端页。 */
+function endSession(tabId, msg) {
+  if (state.view === 'term' && state.activeTabId === tabId) {
+    state.view = 'files'
+    if (msg) toast(msg, 'ok')
   }
 }
 
@@ -228,6 +240,14 @@ export function ensureCloseable(tabId) {
     return false
   }
   return true
+}
+
+/* 是否有任一终端正在运行命令（T4：beforeunload 拦截刷新/关闭页面） */
+export function anyBusy() {
+  for (const t of state.terminals.values()) {
+    if (t.busy) return true
+  }
+  return false
 }
 
 /* 视图切换：进入终端视图时惰性建连 */

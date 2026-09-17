@@ -313,10 +313,12 @@ func (s *Session) Busy() bool {
 }
 
 // watchExit 等 shell 进程退出，推送 exit 帧并收尾。
+// 写帧后主动关闭连接，使 Serve 的读循环尽快返回、释放会话（幂等）。
 func (s *Session) watchExit(ws wsConn) {
 	_ = s.cmd.Wait()
 	_ = ws.Write(websocket.MessageText, []byte(`{"t":"exit"}`))
 	s.terminate()
+	ws.Close()
 }
 
 // Kill 主动终止会话（WS 断开 / closeTab 时调用）。

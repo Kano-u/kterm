@@ -17,7 +17,7 @@ import EntrySheet from './components/EntrySheet.vue'
 import { loadState, validateRestoredTabs, activeTab, state } from './store.js'
 import { apiList } from './api.js'
 import { onPopState, restorePath, navigateTab } from './actions.js'
-import { setRootDir, setNavigateTab } from './terminal.js'
+import { setRootDir, setNavigateTab, anyBusy } from './terminal.js'
 
 /* terminal.js ←→ actions.js 双向依赖：由本处一次性注入导航回调，避免循环导入。
  * 终端 OSC 7 上报 → 文件页跟随（fromTerminal 阻断回注 cd，防回环）。 */
@@ -35,6 +35,15 @@ function fatal(msg) {
 
 function onPop(ev) {
   onPopState(ev, restorePath)
+}
+
+/* T4：有终端正在运行命令时拦截刷新/关闭浏览器页 */
+function onBeforeUnload(ev) {
+  if (anyBusy()) {
+    ev.preventDefault()
+    ev.returnValue = '终端正在运行命令，确定离开吗？'
+    return ev.returnValue
+  }
 }
 
 /* 启动：恢复状态 → 校验各 tab 路径 → 注册返回手势 */
@@ -61,9 +70,13 @@ onMounted(async () => {
   const act = activeTab()
   history.replaceState({ tabId: act.id, path: act.path }, '')
   window.addEventListener('popstate', onPop)
+  window.addEventListener('beforeunload', onBeforeUnload)
 })
 
-onUnmounted(() => window.removeEventListener('popstate', onPop))
+onUnmounted(() => {
+  window.removeEventListener('popstate', onPop)
+  window.removeEventListener('beforeunload', onBeforeUnload)
+})
 </script>
 
 <template>

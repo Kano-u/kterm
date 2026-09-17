@@ -74,4 +74,6 @@ func (r *realConn) Write(mt websocket.MessageType, data []byte) error {
 	return r.c.Write(ctx, mt, data)
 }
 
-func (r *realConn) Close() {}
+func (r *realConn) Close() {
+	_ = r.c.Close(websocket.StatusNormalClosure, "")
+}

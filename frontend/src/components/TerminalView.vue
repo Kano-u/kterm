@@ -129,13 +129,26 @@ function disposeXterm(tabId) {
   layerCount.value = xs.size
 }
 
+/* 清理已关闭标签遗留的 xterm 层（closeTab 只关闭 WS，DOM 需在此回收） */
+watch(
+  () => state.tabs.map((t) => t.id).join(','),
+  () => {
+    const alive = new Set(state.tabs.map((t) => t.id))
+    for (const tabId of [...xs.keys()]) {
+      if (!alive.has(tabId)) disposeXterm(tabId)
+    }
+  },
+)
+
 /* 激活标签变化 / 视图切换 → 显示对应层并惰性建连 */
 watch(
   () => [state.activeTabId, state.view],
   ([tabId, view]) => {
     if (view !== 'term') return
     const entry = state.terminals.get(tabId)
-    if (!entry || entry.status === 'ended') {
+    // 无会话、已结束、或 xterm 层已销毁 → 新建（T4：切标签/重进自动建连）
+    if (!entry || entry.status === 'ended' || !xs.has(tabId)) {
+      if (entry && entry.status === 'ended') removeTerm(tabId)
       openSession(tabId)
     }
     showLayer(tabId)
