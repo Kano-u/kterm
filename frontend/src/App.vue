@@ -20,7 +20,7 @@ import { onPopState, restorePath, navigateTab } from './actions.js'
 import { setRootDir, setNavigateTab, anyBusy } from './terminal.js'
 import { loadSettings } from './settings.js'
 import { initViewportWatch } from './viewport.js'
-import { keyBarVisible, keyBarHidable } from './keybar.js'
+import { keyBarVisible } from './keybar.js'
 
 /* terminal.js ←→ actions.js 双向依赖：由本处一次性注入导航回调，避免循环导入。
  * 终端 OSC 7 上报 → 文件页跟随（fromTerminal 阻断回注 cd，防回环）。 */

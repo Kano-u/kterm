@@ -33,8 +33,8 @@ func TestLoadSettingsDefaultWhenMissing(t *testing.T) {
 	if got := strings.Join(load.Settings.Keys[1], ","); got != "INS,END,SHIFT,:,LEFT,DOWN,RIGHT" {
 		t.Fatalf("默认第二行不对: %s", got)
 	}
-	if load.Settings.KeyBarMode != KeyBarAuto {
-		t.Fatalf("默认显示方式应为 auto，实际 %q", load.Settings.KeyBarMode)
+	if !load.Settings.KeyBarEnabled {
+		t.Fatal("默认应开启按键栏")
 	}
 	// 未写盘
 	if _, err := os.Stat(filepath.Join(r.dir, SettingsFileName)); !os.IsNotExist(err) {
@@ -45,8 +45,8 @@ func TestLoadSettingsDefaultWhenMissing(t *testing.T) {
 func TestSaveAndLoadSettingsRoundTrip(t *testing.T) {
 	r := newSettingsTestRoot(t)
 	in := Settings{
-		Keys:       [][]string{{"CTRL+C", "ESC"}, {"UP", "DOWN"}, {"TAB"}},
-		KeyBarMode: KeyBarAlways,
+		Keys:          [][]string{{"CTRL+C", "ESC"}, {"UP", "DOWN"}, {"TAB"}},
+		KeyBarEnabled: true,
 	}
 	if err := r.SaveSettings(in); err != nil {
 		t.Fatalf("SaveSettings: %v", err)
@@ -69,8 +69,8 @@ func TestSaveAndLoadSettingsRoundTrip(t *testing.T) {
 	if len(load.Settings.Keys) != 3 || load.Settings.Keys[0][0] != "CTRL+C" {
 		t.Fatalf("读回内容不对: %+v", load.Settings.Keys)
 	}
-	if load.Settings.KeyBarMode != KeyBarAlways {
-		t.Fatalf("读回模式不对: %q", load.Settings.KeyBarMode)
+	if !load.Settings.KeyBarEnabled {
+		t.Fatal("读回开关不对: 应为 true")
 	}
 
 	// 磁盘上是合法 JSON 且缩进可读
@@ -117,7 +117,7 @@ func TestLoadSettingsInvalidContentFallsBack(t *testing.T) {
 
 func TestLoadSettingsNormalizesPartialFile(t *testing.T) {
 	r := newSettingsTestRoot(t)
-	// 只给了 keys，没给模式 → 模式回退 auto；空布局 → 用默认两行
+	// 只给了 keys，没给开关 → 默认开启；空布局 → 用默认两行
 	if err := os.WriteFile(filepath.Join(r.dir, SettingsFileName), []byte(`{"keys":null}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -125,11 +125,38 @@ func TestLoadSettingsNormalizesPartialFile(t *testing.T) {
 	if !load.FromFile {
 		t.Fatalf("应认作有效文件: %+v", load)
 	}
-	if load.Settings.KeyBarMode != KeyBarAuto {
-		t.Fatalf("模式应回退 auto: %q", load.Settings.KeyBarMode)
+	if !load.Settings.KeyBarEnabled {
+		t.Fatal("缺 keyBarEnabled 应默认开启")
 	}
 	if len(load.Settings.Keys) != 2 {
 		t.Fatalf("空布局应回退默认: %+v", load.Settings.Keys)
+	}
+}
+
+// 显式关闭与旧字段 keyBarMode:"off" 都要能读成关闭。
+func TestLoadSettingsKeyBarEnabled(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"显式关闭", `{"keyBarEnabled":false}`, false},
+		{"显式开启", `{"keyBarEnabled":true}`, true},
+		{"旧字段 off", `{"keyBarMode":"off"}`, false},
+		{"旧字段 auto", `{"keyBarMode":"auto"}`, true},
+	}
+	for _, c := range cases {
+		r := newSettingsTestRoot(t)
+		if err := os.WriteFile(filepath.Join(r.dir, SettingsFileName), []byte(c.raw), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		load := r.LoadSettings()
+		if load.Warning != "" {
+			t.Fatalf("%s: 不应有 warning: %s", c.name, load.Warning)
+		}
+		if load.Settings.KeyBarEnabled != c.want {
+			t.Fatalf("%s: 开关应为 %v，实际 %v", c.name, c.want, load.Settings.KeyBarEnabled)
+		}
 	}
 }
 
@@ -144,7 +171,6 @@ func TestSaveSettingsRejectsInvalid(t *testing.T) {
 		{"空按键名", Settings{Keys: [][]string{{"ESC", ""}}}},
 		{"带空白", Settings{Keys: [][]string{{"A B"}}}},
 		{"按键名过长", Settings{Keys: [][]string{{strings.Repeat("X", SettingsMaxKeyLen+1)}}}},
-		{"未知模式", Settings{Keys: [][]string{{"ESC"}}, KeyBarMode: "sometimes"}},
 	}
 	for _, c := range cases {
 		if err := r.SaveSettings(c.s); err == nil {

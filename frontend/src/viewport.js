@@ -5,12 +5,11 @@
  *     软键盘弹出时 layout viewport 一起缩小，100dvh 变小，底部栏自然被顶到键盘上方；
  *     此时 innerHeight 与 visualViewport.height 同步缩小，inset ≈ 0。
  *   - resizes-visual（Safari 等）：layout 不变，键盘覆盖页面；
- *     此时 inset > 0，底部栏据此自行抬高（见 KeyboardBar）。
+ *     此时 inset > 0，按键栏据此自行抬高（见 KeyboardBar）。
  *
  * 判定用「当前可见高度比历史最大高度少了多少」：阈值 140px 足以避开地址栏收放抖动。
  */
 import { state } from './store.js'
-import { resetKeyBarManual } from './keybar.js'
 
 const KEYBOARD_MIN_INSET = 140
 
@@ -26,11 +25,8 @@ function update() {
   lastWidth = width
   if (height > baseline) baseline = height
   const hidden = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0
-  const open = baseline - height > KEYBOARD_MIN_INSET
-  // 软键盘开/合时清掉手动覆盖，让 auto 模式重新接管按键栏显隐
-  if (open !== state.keyboardBar) resetKeyBarManual()
-  state.keyboardBar = open
-  state.keyboardInset = open ? (hidden > 60 ? hidden : 0) : 0
+  state.keyboardBar = baseline - height > KEYBOARD_MIN_INSET
+  state.keyboardInset = state.keyboardBar && hidden > 60 ? hidden : 0
 }
 
 /* 启动监听（App 挂载时调用一次），返回取消函数。 */

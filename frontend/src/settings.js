@@ -14,14 +14,6 @@ export const MAX_ROWS = 8
 export const MAX_PER_ROW = 24
 export const MAX_KEY_LEN = 24
 
-/* ---------- 按键栏显示方式 ---------- */
-
-export const KEY_BAR_MODES = [
-  { value: 'auto', label: '自动', hint: '软键盘弹出时显示，并顶替底部任务栏；也可在任务栏点「按键」手动唤出' },
-  { value: 'always', label: '常显', hint: '终端视图下始终显示并顶替任务栏，可点「收起」还原任务栏' },
-  { value: 'off', label: '关闭', hint: '完全关闭按键栏' },
-]
-
 /* ---------- 默认设置：两行移动端终端常用键 ---------- */
 
 export const DEFAULT_KEYS = [
@@ -34,7 +26,7 @@ export const DEFAULT_KEY_TEXT = JSON.stringify(DEFAULT_KEYS, null, 2)
 /* 当前设置（响应式）：应用启动时从服务端拉取，失败则保持内置默认 */
 export const settings = reactive({
   keys: DEFAULT_KEYS.map((r) => r.slice()),
-  keyBarMode: 'auto',
+  keyBarEnabled: true, // 键盘增强总开关（设置页中的折叠项）
   loaded: false,
 })
 
@@ -46,9 +38,7 @@ export function applySettings(s) {
   if (Array.isArray(s.keys) && s.keys.length) {
     settings.keys = s.keys.map((row) => (Array.isArray(row) ? row.map(String) : []))
   }
-  if (KEY_BAR_MODES.some((m) => m.value === s.keyBarMode)) {
-    settings.keyBarMode = s.keyBarMode
-  }
+  settings.keyBarEnabled = s.keyBarEnabled !== false
 }
 
 /* 启动时拉取设置：任何失败都退回内置默认，不阻塞主流程 */
@@ -68,7 +58,7 @@ export async function loadSettings() {
 export async function saveSettings(next) {
   const res = await apiOp('/api/settings', {
     keys: next.keys,
-    keyBarMode: next.keyBarMode,
+    keyBarEnabled: next.keyBarEnabled !== false,
   })
   applySettings(res.settings)
   return settings

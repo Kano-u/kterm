@@ -279,7 +279,6 @@ export function anyBusy() {
 export function setView(view) {
   state.view = view
   lockKeyBar.value = false // 切视图时清掉粘滞修饰键状态
-  state.keyBarManual = null // 以及按键栏的手动显隐覆盖（回到软键盘自动接管）
   if (view === 'term') {
     const tab = activeTab()
     const entry = state.terminals.get(tab.id)

@@ -18,35 +18,33 @@ const (
 	SettingsMaxKeyLen = 24 // 单个按键名长度上限（字符数）
 )
 
-// 按键栏显示方式（前端「键盘增强」的显示策略）。
-const (
-	KeyBarAuto   = "auto"   // 默认：软键盘弹出时显示，替换底部任务栏
-	KeyBarAlways = "always" // 终端视图常显（任务栏保留）
-	KeyBarOff    = "off"    // 不显示按键栏
-)
-
 // Settings 是持久化在 <root>/.kfm-settings.json 中的用户设置。
 type Settings struct {
-	Keys       [][]string `json:"keys"`       // 按键栏布局：外层每项一行，内层为按键名
-	KeyBarMode string     `json:"keyBarMode"` // auto | always | off
+	Keys          [][]string `json:"keys"`          // 按键栏布局：外层每项一行，内层为按键名
+	KeyBarEnabled bool       `json:"keyBarEnabled"` // 键盘增强总开关（终端软键盘弹出时显示按键栏）
 }
 
-// DefaultSettings 返回内置默认设置：两行移动端终端常用键。
+// settingsFile 是磁盘上的表示：开关用指针以便区分「缺字段」（默认开启）与显式 false。
+// keyBarMode 是同一功能的早期字段名（auto/always/off），仅用于兼容旧文件。
+type settingsFile struct {
+	Keys          [][]string `json:"keys"`
+	KeyBarEnabled *bool      `json:"keyBarEnabled"`
+	KeyBarMode    string     `json:"keyBarMode"`
+}
+
+// DefaultSettings 返回内置默认设置：两行移动端终端常用键，按键栏开启。
 func DefaultSettings() Settings {
 	return Settings{
 		Keys: [][]string{
 			{"ESC", "TAB", "CTRL", "ALT", "-", "UP", "ENTER"},
 			{"INS", "END", "SHIFT", ":", "LEFT", "DOWN", "RIGHT"},
 		},
-		KeyBarMode: KeyBarAuto,
+		KeyBarEnabled: true,
 	}
 }
 
-// Normalize 补齐空字段（读盘宽容：缺 keys 用默认布局，未知模式回退 auto）。
+// Normalize 补齐空字段（读盘宽容：空布局回退默认两行）。
 func (s *Settings) Normalize() {
-	if s.KeyBarMode != KeyBarAlways && s.KeyBarMode != KeyBarOff {
-		s.KeyBarMode = KeyBarAuto
-	}
 	if len(s.Keys) == 0 {
 		s.Keys = DefaultSettings().Keys
 	}
@@ -79,11 +77,6 @@ func ValidateSettings(s Settings) error {
 			}
 		}
 	}
-	switch s.KeyBarMode {
-	case "", KeyBarAuto, KeyBarAlways, KeyBarOff:
-	default:
-		return fmt.Errorf("未知的按键栏显示方式: %s", s.KeyBarMode)
-	}
 	return nil
 }
 
@@ -109,10 +102,16 @@ func (r *Root) LoadSettings() SettingsLoad {
 		}
 		return SettingsLoad{Settings: DefaultSettings(), Warning: "读取设置失败，已使用默认设置"}
 	}
-	var s Settings
-	if err := json.Unmarshal(data, &s); err != nil {
+	var f settingsFile
+	if err := json.Unmarshal(data, &f); err != nil {
 		return SettingsLoad{Settings: DefaultSettings(), Warning: "设置文件格式错误，已使用默认设置"}
 	}
+	// 缺 keyBarEnabled → 默认开启；仅有旧字段 keyBarMode 时用 "off" 映射为关闭
+	enabled := f.KeyBarEnabled == nil || *f.KeyBarEnabled
+	if f.KeyBarEnabled == nil && f.KeyBarMode == "off" {
+		enabled = false
+	}
+	s := Settings{Keys: f.Keys, KeyBarEnabled: enabled}
 	s.Normalize()
 	if err := ValidateSettings(s); err != nil {
 		return SettingsLoad{Settings: DefaultSettings(), Warning: "设置文件不合法（" + err.Error() + "），已使用默认设置"}

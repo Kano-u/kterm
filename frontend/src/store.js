@@ -26,7 +26,6 @@ export const state = reactive({
   view: 'files', // 底部任务栏视图：'files' | 'term' | 'settings'（不持久化）
   keyboardBar: false, // 软键盘是否弹出（viewport.js 维护，不持久化）
   keyboardInset: 0, // 被软键盘遮挡的高度（px）
-  keyBarManual: null, // 按键栏手动覆盖：null=自动（随软键盘）| true=强制显示 | false=收起（不持久化）
   terminals: new Map(), // tabId -> {status,busy,outsideRoot,ws}（不持久化，见 terminal.js）
   bootError: '',
 })

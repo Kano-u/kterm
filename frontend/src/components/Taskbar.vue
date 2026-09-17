@@ -6,7 +6,7 @@
  */
 import { state, activeTab } from '../store.js'
 import { activeTerm, setView, isTermOpen, closeTerminal } from '../terminal.js'
-import { keyBarVisible, keyBarHidable } from '../keybar.js'
+import { keyBarVisible } from '../keybar.js'
 import Icon from './Icon.vue'
 
 /* 按键栏已接管底部时隐藏任务栏 */
@@ -23,11 +23,6 @@ function busy() {
 function closeTerm(e) {
   e.stopPropagation()
   closeTerminal(activeTab().id)
-}
-
-/* 「收起」后从任务栏唤回按键栏（软键盘开/合会自动清除该手动覆盖） */
-function showKeyBar() {
-  state.keyBarManual = true
 }
 </script>
 
@@ -83,17 +78,6 @@ function showKeyBar() {
         <span class="material-symbols-outlined" style="font-size: 15px">close</span>
       </button>
     </div>
-    <!-- 按键栏当前未显示时：任务栏提供唤出入口
-         （auto 模式软键盘检测失灵时的保险，以及 always 模式手动收起后） -->
-    <button
-      v-if="keyBarHidable"
-      class="state-layer flex h-9 flex-none items-center gap-1.5 rounded-full bg-surface-3 px-3.5 text-[13px] text-on-surface-variant"
-      title="显示按键栏"
-      @click="showKeyBar"
-    >
-      <Icon name="keyboard" :size="18" />
-      按键
-    </button>
     <!-- 设置 -->
     <button
       class="state-layer flex h-9 min-w-20 flex-none items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] transition-colors"

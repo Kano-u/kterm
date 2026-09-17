@@ -1,37 +1,39 @@
 <script setup>
 /* SettingsView：底部任务栏的「设置」整页视图。
  *
- * 本期只有「键盘增强」一组：显示方式 + 按键布局文本（二维数组）。
- * 保存在服务端 <root>/.kfm-settings.json，成功后立即生效（终端无需重连）。
+ * 「键盘增强」平时只占一行（标题 + 开关 + 展开箭头），点击标题行才展开按键布局编辑，
+ * 避免设置页一进来就被大块内容占满。设置保存在服务端 <root>/.kfm-settings.json。
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import {
   settings, keyRows, parseKeyText, rowsToText, saveSettings,
-  DEFAULT_KEY_TEXT, KEY_BAR_MODES,
+  DEFAULT_KEY_TEXT,
 } from '../settings.js'
 import { toast } from '../toast.js'
 import { confirm } from '../confirm.js'
 import Icon from './Icon.vue'
 
+const open = ref(false) // 「键盘增强」是否展开
 const text = ref(rowsToText(keyRows.value))
 const error = ref('')
 const saving = ref(false)
-const mode = ref(settings.keyBarMode)
+const enabled = ref(settings.keyBarEnabled)
 
 /* 用「解析成功后的规范化文本」比较，避免缩进/大小写差异造成假脏 */
 const baseline = ref(rowsToText(keyRows.value))
-const dirty = computed(() => text.value !== baseline.value || mode.value !== settings.keyBarMode)
+const dirty = computed(
+  () => text.value !== baseline.value || enabled.value !== settings.keyBarEnabled,
+)
 
-/* 从服务端拉取完成后（App 启动异步）同步一次编辑器内容与显示方式；
- * 用户已改动时不覆盖。 */
+/* 服务端设置到达后（App 启动异步）同步一次编辑器内容；用户已改动时不覆盖 */
 watch(
-  () => [settings.keys, settings.keyBarMode],
+  () => [settings.keys, settings.keyBarEnabled],
   () => {
     if (dirty.value) return
     const t = rowsToText(keyRows.value)
     text.value = t
     baseline.value = t
-    mode.value = settings.keyBarMode
+    enabled.value = settings.keyBarEnabled
   },
   { deep: true },
 )
@@ -41,8 +43,6 @@ const preview = computed(() => {
   const res = parseKeyText(text.value)
   return res.error ? keyRows.value : res.rows
 })
-
-const modeHint = computed(() => KEY_BAR_MODES.find((m) => m.value === mode.value)?.hint || '')
 
 /* 未保存时离开页面给一次提示 */
 function onBeforeUnload(ev) {
@@ -70,7 +70,7 @@ async function onSave() {
   try {
     await saveSettings({
       keys: res.rows.map((row) => row.map((k) => k.name)),
-      keyBarMode: mode.value,
+      keyBarEnabled: enabled.value,
     })
     const normalized = rowsToText(res.rows)
     text.value = normalized
@@ -93,103 +93,112 @@ async function onReset() {
   })
   if (!ok) return
   text.value = DEFAULT_KEY_TEXT
-  mode.value = 'auto'
+  enabled.value = true
   error.value = ''
 }
 </script>
 
 <template>
-  <main class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface-1 px-3 py-4">
-    <h1 class="mb-4 px-1 text-xl text-on-surface">设置</h1>
+  <main class="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-surface-1 px-3 py-3">
+    <h1 class="mb-3 px-1 text-lg text-on-surface">设置</h1>
 
-    <!-- 键盘增强 -->
-    <section class="m3-elevate rounded-2xl bg-surface-2 p-4">
-      <div class="mb-1 flex items-center gap-2">
-        <Icon name="keyboard" :size="22" class="text-primary" />
-        <h2 class="flex-1 text-base font-medium text-on-surface">键盘增强</h2>
-      </div>
-      <p class="mb-4 text-[12px] leading-relaxed text-on-surface-variant">
-        终端视图下的额外按键栏：点击即向终端发送该键。CTRL / ALT / SHIFT 为粘滞修饰键，
-        点亮后再点其他键即组合发送（如 CTRL → C），再点一次自己取消。
-      </p>
-
-      <!-- 显示方式 -->
-      <div class="mb-1 text-[13px] text-on-surface-variant">显示方式</div>
-      <div class="mb-1 flex flex-wrap gap-2">
+    <!-- 键盘增强：折叠成一项，点击标题行展开 -->
+    <section class="overflow-hidden rounded-2xl bg-surface-2">
+      <div class="flex items-center gap-1 px-3 py-2.5">
         <button
-          v-for="m in KEY_BAR_MODES"
-          :key="m.value"
-          class="state-layer flex h-9 flex-none items-center rounded-full px-3.5 text-[13px] transition-colors"
-          :class="
-            mode === m.value
-              ? 'bg-primary-container font-medium text-on-primary-container'
-              : 'bg-surface-3 text-on-surface-variant'
-          "
-          @click="mode = m.value"
+          class="state-layer flex min-w-0 flex-1 items-center gap-2 rounded-xl py-1 text-left"
+          :aria-expanded="open"
+          @click="open = !open"
         >
-          {{ m.label }}
+          <Icon name="keyboard" :size="20" class="flex-none text-primary" />
+          <span class="min-w-0 flex-1 truncate text-[15px] text-on-surface">键盘增强</span>
+          <span class="truncate text-[12px] text-on-surface-variant/80">
+            {{ enabled ? '已开启' : '已关闭' }}
+          </span>
+          <span
+            class="material-symbols-outlined flex-none text-on-surface-variant transition-transform"
+            :class="open ? 'rotate-180' : ''"
+            style="font-size: 20px"
+          >expand_more</span>
         </button>
-      </div>
-      <p class="mb-4 text-[12px] text-on-surface-variant/80">{{ modeHint }}</p>
-
-      <!-- 布局文本 -->
-      <div class="mb-1 text-[13px] text-on-surface-variant">按键布局</div>
-      <p class="mb-2 text-[12px] leading-relaxed text-on-surface-variant/80">
-        二维数组，外层每项一行。可用键名（大小写不敏感）：ESC TAB ENTER UP DOWN LEFT RIGHT
-        INS DEL HOME END PGUP PGDN BACKSPACE SPACE CTRL ALT SHIFT，以及任意单字符
-        （<code>-</code> <code>:</code> <code>a</code> …）。组合键写成 <code>"CTRL+C"</code>。
-        未知名字按字面发送，所以 <code>"F1"</code> 会发送 <code>F1</code> 两个字符。
-      </p>
-      <textarea
-        v-model="text"
-        spellcheck="false"
-        autocomplete="off"
-        autocapitalize="off"
-        rows="7"
-        class="w-full resize-y rounded-xl bg-surface-3 p-3 font-mono text-[12px] leading-relaxed text-on-surface caret-primary outline-none focus:ring-2 focus:ring-primary/60"
-        @input="onInput"
-      />
-
-      <p v-if="error" class="mt-1.5 text-[12px] text-error">{{ error }}</p>
-
-      <!-- 预览 -->
-      <div class="mt-3 mb-1 text-[13px] text-on-surface-variant">预览</div>
-      <div class="rounded-xl bg-surface-3/60 p-2">
-        <div
-          v-for="(row, i) in preview"
-          :key="i"
-          class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5"
+        <!-- 开关：不展开也能快速启停 -->
+        <button
+          class="state-layer relative h-7 w-12 flex-none rounded-full transition-colors"
+          :class="enabled ? 'bg-primary' : 'bg-surface-3'"
+          role="switch"
+          :aria-checked="enabled"
+          :title="enabled ? '关闭键盘增强' : '开启键盘增强'"
+          @click="enabled = !enabled"
         >
           <span
-            v-for="(k, j) in row"
-            :key="k.name + '-' + j"
-            class="flex h-8 min-w-10 flex-none items-center justify-center rounded-lg px-2.5 text-[12px] font-medium"
-            :class="k.mod ? 'bg-primary/20 text-primary' : 'bg-surface-3 text-on-surface'"
-          >{{ k.label }}</span>
-        </div>
+            class="absolute top-1 h-5 w-5 rounded-full transition-all"
+            :class="enabled ? 'left-6 bg-on-primary' : 'left-1 bg-on-surface-variant'"
+          />
+        </button>
       </div>
 
-      <div class="mt-4 flex items-center justify-end gap-1">
-        <span v-if="dirty" class="mr-auto pl-1 text-[12px] text-tertiary">有未保存的修改</span>
-        <button
-          class="state-layer flex h-10 flex-none items-center rounded-full px-4 text-sm text-on-surface-variant"
-          :disabled="saving"
-          @click="onReset"
-        >
-          恢复默认
-        </button>
-        <button
-          class="state-layer flex h-10 flex-none items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-on-primary transition-opacity disabled:pointer-events-none disabled:opacity-40"
-          :disabled="saving || !dirty"
-          @click="onSave"
-        >
-          <Icon name="save" :size="18" />
-          保存
-        </button>
+      <!-- 展开区 -->
+      <div v-if="open" class="border-t border-outline-variant/40 px-3 pb-3 pt-3">
+        <p class="mb-2 text-[12px] leading-relaxed text-on-surface-variant">
+          终端视图下弹出软键盘时，底部会显示按键栏（顶替「文件/终端/设置」）。
+          CTRL / ALT / SHIFT 为粘滞修饰键：点亮后再点其他键即组合发送（如 CTRL → C），再点一次自己取消。
+        </p>
+
+        <div class="mb-1 text-[12px] text-on-surface-variant">按键布局</div>
+        <p class="mb-2 text-[11px] leading-relaxed text-on-surface-variant/80">
+          二维数组，外层每项一行。可用键名（大小写不敏感）：ESC TAB ENTER UP DOWN LEFT RIGHT
+          INS DEL HOME END PGUP PGDN BACKSPACE SPACE CTRL ALT SHIFT，以及任意单字符
+          （<code>-</code> <code>:</code> <code>a</code> …）。组合键写成 <code>"CTRL+C"</code>。
+          未知名字按字面发送（<code>"F1"</code> 会发送 <code>F1</code> 两个字符）。
+        </p>
+        <textarea
+          v-model="text"
+          spellcheck="false"
+          autocomplete="off"
+          autocapitalize="off"
+          rows="6"
+          class="w-full resize-y rounded-xl bg-surface-3 p-2.5 font-mono text-[11px] leading-relaxed text-on-surface caret-primary outline-none focus:ring-2 focus:ring-primary/60"
+          @input="onInput"
+        />
+        <p v-if="error" class="mt-1.5 text-[12px] text-error">{{ error }}</p>
+
+        <!-- 预览 -->
+        <div class="mt-3 mb-1 text-[12px] text-on-surface-variant">预览</div>
+        <div class="rounded-xl bg-surface-3/60 p-1.5">
+          <div v-for="(row, i) in preview" :key="i" class="flex items-stretch gap-0.5 py-0.5">
+            <span
+              v-for="(k, j) in row"
+              :key="k.name + '-' + j"
+              class="flex h-7 min-w-0 flex-1 basis-0 items-center justify-center overflow-hidden rounded-md px-0.5 text-[11px] font-medium whitespace-nowrap"
+              :class="k.mod ? 'bg-primary/20 text-primary' : 'bg-surface-3 text-on-surface'"
+            >
+              <span class="truncate">{{ k.label }}</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-3 flex items-center justify-end gap-1">
+          <span v-if="dirty" class="mr-auto pl-1 text-[12px] text-tertiary">有未保存的修改</span>
+          <button
+            class="state-layer flex h-9 flex-none items-center rounded-full px-3.5 text-[13px] text-on-surface-variant"
+            :disabled="saving"
+            @click="onReset"
+          >
+            恢复默认
+          </button>
+          <button
+            class="state-layer flex h-9 flex-none items-center gap-1.5 rounded-full bg-primary px-3.5 text-[13px] font-medium text-on-primary transition-opacity disabled:pointer-events-none disabled:opacity-40"
+            :disabled="saving || !dirty"
+            @click="onSave"
+          >
+            <Icon name="save" :size="16" />
+            保存
+          </button>
+        </div>
       </div>
     </section>
 
-    <p class="mt-3 px-1 text-[12px] leading-relaxed text-on-surface-variant/70">
+    <p class="mt-2.5 px-1 text-[11px] leading-relaxed text-on-surface-variant/70">
       设置保存在根目录的 <code>.kfm-settings.json</code>（不会出现在文件列表中）。
     </p>
   </main>
