@@ -19,7 +19,13 @@ func NewRoot() (*Root, error) {
 	if err != nil {
 		return nil, fmt.Errorf("获取工作目录失败: %w", err)
 	}
-	real, err := filepath.EvalSymlinks(wd)
+	return NewRootAt(wd)
+}
+
+// NewRootAt 以 dir 为基准创建 Root（dir 必须存在，符号链接解析后固化）。
+// 除 NewRoot 外，测试与嵌入式场景也用它获得一个不依赖进程 cwd 的根目录。
+func NewRootAt(dir string) (*Root, error) {
+	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return nil, fmt.Errorf("解析工作目录失败: %w", err)
 	}

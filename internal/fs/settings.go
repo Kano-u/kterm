@@ -152,9 +152,10 @@ func (r *Root) SaveSettings(s Settings) error {
 	return nil
 }
 
-// reservedName 报告 name 是否为 kfm 内部条目（回收站、设置文件及其写入临时文件）。
-// 内部条目不参与目录列表与搜索，避免用户误删或误搜。
+// reservedName 报告 name 是否为 kfm 内部条目（回收站、设置文件及其写入临时文件、
+// 编辑器原子写入的临时文件）。内部条目不参与目录列表与搜索，避免用户误删或误搜。
 func reservedName(name string) bool {
 	return name == TrashDirName || name == SettingsFileName ||
-		strings.HasPrefix(name, SettingsFileName+".tmp-")
+		strings.HasPrefix(name, SettingsFileName+".tmp-") ||
+		strings.HasPrefix(name, EditTempPrefix)
 }
