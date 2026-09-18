@@ -1,18 +1,22 @@
 <script setup>
 /* Taskbar：底部任务栏（文件 / 终端 / 设置）。
  *
- * 软键盘弹出时整条任务栏被 KeyboardBar 顶替（只有终端视图有此行为），
- * 因此这里用一个整块容器统一控制显隐。
+ * 窄屏终端的内置键盘出现时整条任务栏被顶替（taskbarVisible 统一判定）。
  */
+import { computed } from 'vue'
 import { state, activeTab } from '../store.js'
 import { activeTerm, setView, isTermOpen, closeTerminal } from '../terminal.js'
 import { isEditorOpen, editorDirty, activeEditor, closeEditor } from '../editor.js'
 import { enterSettings, leaveSettings } from '../settingsnav.js'
-import { keyBarVisible } from '../keybar.js'
+import { taskbarVisible } from '../keybar.js'
+import { openBuiltIn } from '../ime.js'
 import Icon from './Icon.vue'
 
-/* 按键栏已接管底部时隐藏任务栏 */
-const keyboardTakeover = keyBarVisible
+/* 系统输入法接管时（resizes-visual 宿主上）软键盘会盖住页面底部，
+ * 任务栏里的“内置键盘”入口靠这段 margin 抬到系统键盘之上。
+ * 内置键盘显示时任务栏整条不渲染，所以不需要再乘 keyBarVisible。 */
+const imeInset = computed(() => (state.imeActive ? state.keyboardInset : 0))
+
 
 /* 设置页里点「文件/终端/编辑」：先退回该视图（会一次退掉设置页的历史记录） */
 async function goFiles() {
@@ -56,13 +60,19 @@ function closeEditorSession(e) {
   e.stopPropagation()
   closeEditor(activeTab().id)
 }
+
+/* 系统输入法接管时，任务栏显示“内置键盘”按钮切回。 */
+function backToBuiltIn() {
+  openBuiltIn()
+}
 </script>
 
 <template>
   <nav
-    v-if="!keyboardTakeover"
+    v-if="taskbarVisible"
     data-bottom-bar
     class="flex flex-none items-center justify-center gap-2 bg-surface px-2 py-1.5 pb-[calc(env(safe-area-inset-bottom)+6px)]"
+    :style="imeInset ? { marginBottom: imeInset + 'px' } : null"
     aria-label="视图切换"
   >
     <button
@@ -76,6 +86,14 @@ function closeEditorSession(e) {
     >
       <span class="material-symbols-outlined" style="font-size: 18px">folder</span>
       文件
+    </button>
+    <button
+      v-if="state.imeActive"
+      class="state-layer flex h-9 min-w-16 flex-none items-center justify-center gap-1.5 rounded-full bg-primary-container px-3 text-[13px] font-medium text-on-primary-container"
+      @click="backToBuiltIn"
+    >
+      <span class="material-symbols-outlined" style="font-size: 18px">keyboard</span>
+      内置键盘
     </button>
     <!-- 编辑：仅当该标签已打开编辑会话时出现；dirty 时带圆点，× 关闭会话 -->
     <div

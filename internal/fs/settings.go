@@ -24,9 +24,13 @@ const (
 const URLPlaceholder = "{url}"
 
 // Settings 是持久化在 <root>/.kfm-settings.json 中的用户设置。
+//
+// Keys / KeyBarEnabled 是移动端内置键盘出现之前的兼容字段：
+// 内置键盘已改为固定布局，前端不再读写它们，但字段必须继续解析与落盘，
+// 否则旧设置文件会被判定为损坏，或保存时被静默丢掉。
 type Settings struct {
-	Keys           [][]string `json:"keys"`           // 按键栏布局：外层每项一行，内层为按键名
-	KeyBarEnabled  bool       `json:"keyBarEnabled"`  // 键盘增强总开关（终端软键盘弹出时显示按键栏）
+	Keys           [][]string `json:"keys"`           // 兼容字段：旧版按键栏布局，界面不再编辑
+	KeyBarEnabled  bool       `json:"keyBarEnabled"`  // 兼容字段：旧版键盘增强开关
 	StartupCommand string     `json:"startupCommand"` // 启动命令模板（如 "termux-open-url {url}"），空 = 不自动打开
 }
 
@@ -39,8 +43,8 @@ type settingsFile struct {
 	StartupCommand string     `json:"startupCommand"`
 }
 
-// DefaultSettings 返回内置默认设置：两行移动端终端常用键，按键栏开启。
-// 启动命令默认留空 —— 不自动打开任何东西，由用户显式设置。
+// DefaultSettings 返回内置默认设置。keys 的默认值只是兼容字段的初值
+// （固定内置键盘不读它）；启动命令默认留空 —— 不自动打开任何东西。
 func DefaultSettings() Settings {
 	return Settings{
 		Keys: [][]string{
@@ -59,7 +63,8 @@ func (s *Settings) Normalize() {
 	s.StartupCommand = strings.TrimSpace(s.StartupCommand)
 }
 
-// ValidateSettings 校验按键布局、显示方式与启动命令（保存前的最后一道关）。
+// ValidateSettings 校验按键布局与启动命令（保存前的最后一道关）。
+// 兼容字段 keys 从未被前端 UI 写入过时为空，因此为空视为合法，交由 Normalize 补默认值。
 func ValidateSettings(s Settings) error {
 	if n := utf8.RuneCountInString(s.StartupCommand); n > SettingsMaxStartupLen {
 		return fmt.Errorf("启动命令过长（最多 %d 字）", SettingsMaxStartupLen)

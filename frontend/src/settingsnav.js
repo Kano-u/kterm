@@ -1,7 +1,7 @@
 /* 设置页的两级导航。
  *
  * 底部任务栏「设置」→ 设置列表页（view = 'settings', settingsPage = ''）
- *   点某一项 → 打开该设置项的独立页面（settingsPage = 'keyboard'）
+ *   点某一项 → 打开该设置项的独立页面（settingsPage = 'startup'）
  * 每次进入都 pushState，于是安卓返回手势/浏览器后退 = 退回上一级，
  * 从列表页再退 = 回到进入设置前的视图（文件或终端）。
  * 页面内的返回按钮同样走 history，保证与返回手势行为一致。
@@ -12,6 +12,15 @@
  * 进入设置前的视图随 history 记录保存（from 字段），刷新后仍能还原。
  */
 import { state } from './store.js'
+
+/* 设置子页只有「启动命令」一项。旧版本可能是已删除的键盘增强页
+ * （'keyboard'）；历史记录刷新/返回时出现这类值时回落到设置列表，
+ * 否则 App.vue 会渲染出一个没有内容的空白设置页。 */
+export const SETTINGS_PAGES = ['startup']
+
+function normPage(page) {
+  return SETTINGS_PAGES.includes(page) ? page : ''
+}
 
 /* 进入设置页之前的视图（'files' | 'term' | 'editor'），退出设置时还原 */
 let viewBefore = 'files'
@@ -96,6 +105,7 @@ export function enterSettings() {
 
 /* 打开某个设置项的独立页面 */
 export function openSettingsPage(page) {
+  page = normPage(page)
   if (state.view === 'settings' && state.settingsPage === page) return
   state.view = 'settings'
   state.settingsPage = page
@@ -105,6 +115,7 @@ export function openSettingsPage(page) {
 
 /* 返回手势误离子页后，把该页重新压回历史（用于「放弃修改？」被取消时） */
 export function reopenSettingsPage(page) {
+  page = normPage(page)
   state.view = 'settings'
   state.settingsPage = page
   pushed = depthOf(page)
@@ -135,17 +146,22 @@ export function isSettingsState(s) {
   return !!s && typeof s.settings === 'string'
 }
 
-/* 由 history 记录恢复设置页层级（返回手势命中设置页记录时） */
+/* 由 history 记录恢复设置页层级（返回手势命中设置页记录时）。
+ * 无法识别的旧页面名（如已删除的 'keyboard'）回落到设置列表，
+ * 并把修正后的层级写回该条历史记录，避免返回时又落到同一个空页。 */
 export function applySettingsState(s) {
-  const page = (s && s.settings) || ''
+  if (s && typeof s.from === 'string') viewBefore = normView(s.from)
+  const raw = (s && s.settings) || ''
+  const page = normPage(raw)
   state.view = 'settings'
   state.settingsPage = page
   pushed = depthOf(page)
+  if (s && page !== raw) history.replaceState({ settings: page, from: s.from }, '')
 }
 
 /* 刷新时停在设置页：还原层级并用 replaceState 写回同一记录（不新增历史） */
 export function restoreSettingsState(s) {
-  const page = (s && s.settings) || ''
+  const page = normPage((s && s.settings) || '')
   if (s && typeof s.from === 'string') viewBefore = normView(s.from)
   state.view = 'settings'
   state.settingsPage = page

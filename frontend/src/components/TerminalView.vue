@@ -9,6 +9,8 @@ import '@xterm/xterm/css/xterm.css'
 import { state, activeTab } from '../store.js'
 import { connectTerminal, removeTerm, sendInput, sendResize } from '../terminal.js'
 import { attachTouchScroll } from '../touchscroll.js'
+import { applyInputMode } from '../inputmode.js'
+import { syncInputModes } from '../ime.js'
 
 const layersEl = ref(null)
 const layerCount = ref(0) // 用于空态提示的显隐
@@ -63,6 +65,8 @@ function createXterm(tabId) {
   const fit = new FitAddon()
   term.loadAddon(fit)
   term.open(el)
+  /* 窄屏内置键盘出现时抑制系统软键盘；右下角输入法键会临时移除它。 */
+  applyInputMode(term.textarea, state.mobileKeyboard && state.view === 'term' && !state.imeActive)
   term.onData((d) => sendInput(tabId, d))
   // xterm 6 内部只处理 wheel，移动端拖动需要自己实现（含惯性）
   const detachTouch = attachTouchScroll(el, term)
@@ -95,6 +99,8 @@ function showLayer(tabId) {
           sendResize(tabId, x.term.cols, x.term.rows)
         } catch { /* 尺寸为 0 时忽略 */ }
         x.term.focus()
+        // 新建的层可能没赶上 inputmode 同步（多标签层叠），补一次
+        syncInputModes()
       })
     }
   }
@@ -133,6 +139,15 @@ function disposeXterm(tabId) {
   xs.delete(tabId)
   layerCount.value = xs.size
 }
+
+/* 窄屏判定 / 系统输入法状态变化时，同步所有层的隐藏输入框。
+ * 逐层同步而不是只改当前层：后台标签的 textarea 若留着未抑制状态，
+ * 切回该标签时系统键盘会先弹一下再被抑制。 */
+watch(
+  () => [state.mobileKeyboard, state.imeActive, state.activeTabId, state.view],
+  () => syncInputModes(),
+  { flush: 'post' },
+)
 
 /* 清理已关闭标签遗留的 xterm 层（closeTab 只关闭 WS，DOM 需在此回收） */
 watch(

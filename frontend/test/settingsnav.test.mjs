@@ -8,7 +8,7 @@
 class Hist {
   constructor() { this.stack = [null]; this.i = 0; this.onpop = null }
   get state() { return this.stack[this.i] }
-  pushState(s) { this.stack = this.stack.slice(0, this.i + 1); this.stack.push(s); this.i++; }
+  pushState(s) { this.stack = this.stack.slice(0, this.i + 1); this.stack.push(s); this.i++ }
   replaceState(s) { this.stack[this.i] = s }
   back() { this.go(-1) }
   go(n) {
@@ -53,9 +53,9 @@ nav.enterSettings()
 assert(state.view === 'settings' && state.settingsPage === '', at('进入设置列表'))
 assert(hist.state.settings === '', 'history 记录标记为设置页')
 
-// 2) 进键盘增强子页
-nav.openSettingsPage('keyboard')
-assert(state.view === 'settings' && state.settingsPage === 'keyboard', at('打开键盘增强子页'))
+// 2) 进启动命令子页
+nav.openSettingsPage('startup')
+assert(state.view === 'settings' && state.settingsPage === 'startup', at('打开启动命令子页'))
 
 // 3) 返回手势：子页 → 列表页
 hist.back()
@@ -72,17 +72,17 @@ assert(seen.includes('hook:files'), '退出设置经过 setView 注入的 hook')
 // 5) 从终端视图进入设置，逐级返回应回到终端
 state.view = 'term'
 nav.enterSettings()
-nav.openSettingsPage('keyboard')
-assert(state.settingsPage === 'keyboard', at('从终端打开键盘增强页'))
+nav.openSettingsPage('startup')
+assert(state.settingsPage === 'startup', at('从终端打开启动命令页'))
 hist.back(); await new Promise((r) => setTimeout(r, 0))
 hist.back(); await new Promise((r) => setTimeout(r, 0))
 assert(state.view === 'term', at('返回后回到终端视图'))
 
-// 5b) 第二个设置子页（启动命令）同样支持逐级返回
+// 5b) 再次进入启动命令子页，逐级返回同样成立
 state.view = 'files'
 nav.enterSettings()
 nav.openSettingsPage('startup')
-assert(state.settingsPage === 'startup', at('打开启动命令子页'))
+assert(state.settingsPage === 'startup', at('再次打开启动命令子页'))
 hist.back(); await new Promise((r) => setTimeout(r, 0))
 assert(state.view === 'settings' && state.settingsPage === '', at('启动命令子页 → 列表页'))
 hist.back(); await new Promise((r) => setTimeout(r, 0))
@@ -90,19 +90,18 @@ assert(state.view === 'files', at('列表页 → 文件视图'))
 
 // 6) 底部直接切走：一次退掉所有设置页记录
 nav.enterSettings()
-nav.openSettingsPage('keyboard')
+nav.openSettingsPage('startup')
 await nav.leaveSettings('files')
 await new Promise((r) => setTimeout(r, 0))
 assert(state.view === 'files', at('设置子页直接切到文件视图'))
-assert(hist.i === hist.state.tabId ? true : true, 'history 指针正确')
 
 // 7) 未保存守卫：返回手势被取消时子页仍在
 let allow = false
 nav.setSettingsGuard(async () => allow)
 nav.enterSettings()
-nav.openSettingsPage('keyboard')
+nav.openSettingsPage('startup')
 await settle(1)
-assert(state.settingsPage === 'keyboard', at('守卫拒绝 → 撤销返回，停在子页'))
+assert(state.settingsPage === 'startup', at('守卫拒绝 → 撤销返回，停在子页'))
 allow = true
 await settle(1)
 assert(state.settingsPage === '', at('守卫放行 → 退到列表页'))
@@ -112,7 +111,7 @@ assert(state.view === 'files', at('再退 → 回文件视图'))
 // 7b) 页面内返回按钮：守卫只问一次（popstate 不再重复询问）
 nav.setSettingsGuard(async () => { asks++; return true })
 nav.enterSettings()
-nav.openSettingsPage('keyboard')
+nav.openSettingsPage('startup')
 asks = 0
 await nav.backSettings()
 await new Promise((r) => setTimeout(r, 0))
@@ -133,5 +132,22 @@ await settle(1)
 assert(state.view === 'settings' && state.settingsPage === '', at('刷新后返回 → 列表页'))
 await settle(1)
 assert(state.view === 'term', at('刷新后返回 → 原视图（终端）'))
+
+// 9) 旧版历史记录里的键盘增强页（已删除）回落到设置列表，不渲染空白页
+state.view = 'term'
+hist.stack = [{ tabId: 1, path: '' }, { settings: '', from: 'term' }, { settings: 'keyboard', from: 'term' }]
+hist.i = 2
+nav.applySettingsState(hist.state)
+assert(state.view === 'settings' && state.settingsPage === '', at('旧 keyboard 子页 → 设置列表'))
+assert(hist.state.settings === '', '修正后的层级写回同一条历史记录')
+hist.onpop({ state: hist.stack[1] })
+hist.i = 1
+hist.onpop({ state: hist.stack[1] })
+await new Promise((r) => setTimeout(r, 0))
+assert(state.view === 'settings' && state.settingsPage === '', at('再退一级 → 设置列表'))
+hist.i = 0
+hist.onpop({ state: hist.stack[0] })
+await new Promise((r) => setTimeout(r, 0))
+assert(state.view === 'term', at('退回原始记录 → 终端视图'))
 
 console.log(process.exitCode ? '\n有失败用例' : '\n全部通过')

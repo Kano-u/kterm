@@ -44,13 +44,17 @@ kfm 是一个本地 Web UI 文件管理器：Go 后端（标准库 `net/http`）
         ├── bottombar.js    # 所有底栏的最大高度 → CSS 变量 --kfm-bottom-bar（浮层避让）
         ├── longpress.js    # 长按手势状态机（文件面板多选入口；抖动容忍 + 吞补发 click）
         ├── nameext.js      # 新建面板的常用扩展名（纯字符串变换，点一下只填扩展名）
+        ├── vkeyboard.js    # 窄屏终端内置键盘的固定六行布局与粘滞修饰键动作
+        ├── keybar.js       # 内置键盘 / 任务栏的显隐判定（≤768px 终端视图自动弹起）
+        ├── inputmode.js    # xterm 隐藏 textarea 的 inputmode 抑制（挡系统软键盘）
+        ├── ime.js          # 内置键盘 ↔ 系统输入法的互切与统一收尾
         ├── style.css       # M3 令牌 + 少量自定义类（.state-layer / .term-touch / .longpress-area）
                             # 自定义类**必须放进 @layer components**，见下表说明
         ├── dialog.js / confirm.js / toast.js / loading.js
         └── components/      # Tabbar/Toolbar（含排序行）/FileList/SelectBar/PasteBar/
                             # Toast/Loading/NameDialog/EntrySheet/TrashPanel 等
-                            # （T1 起新增 Taskbar/TerminalView，E2 起新增 EditorView，
-                            #  设置页新增 SettingsView/KeyboardSettings/StartupSettings）
+                            # （T1 起新增 Taskbar/TerminalView/KeyboardBar，E2 起新增 EditorView，
+                            #  设置页新增 SettingsView/StartupSettings）
 ```
 
 ## 构建与运行
@@ -81,6 +85,8 @@ kfm 启动后按模板执行，`{url}` 替换为实际服务地址（模板中�
 ### 用户设置端点（/api/settings）
 
 - `GET /api/settings` → `{"settings":{keys,keyBarEnabled,startupCommand},"fromFile":bool[,"warning":"..."]}`。
+  `keys` / `keyBarEnabled` 是内置键盘出现之前的兼容字段（内置键盘现在布局固定），
+  服务端照旧解析、校验与落盘，旧设置文件可读，保存时也不会丢。
   文件不存在/损坏时返回内置默认 + `warning`（前端 toast 一次）；坏文件保留不覆盖。
 - `POST /api/settings` 体同上三个字段（**整包覆盖**）→ `{"ok":true,"settings":<落盘后>}`。
   校验：键布局（行数/每行键数/键名长度与空白）+ 启动命令（长度 ≤512 字、不得含换行）。
@@ -111,11 +117,17 @@ kfm 启动后按模板执行，`{url}` 替换为实际服务地址（模板中�
   （访问范围就是整台机器，权限交给操作系统）。`display.go` 负责展示路径与绝对路径的互转
   （`DisplayPath` / `StorePath`）。唯一的 exec 点是用户设置的启动命令
   （`main.runStartupCommand` → `fs.StartupArgv`，见下），不经过 shell。
-- **用户设置**：`.kfm-settings.json` 的 `{keys, keyBarEnabled, startupCommand}`。
+- **用户设置**：`.kfm-settings.json` 的 `{keys, keyBarEnabled, startupCommand}`；设置页 UI
+  只暴露启动命令，`keys` / `keyBarEnabled` 仅作兼容保留（见上）。
   `startupCommand` 是启动命令模板（空 = 不执行任何东西），main 在监听成功后读取并
   best-effort 执行（缺命令/失败只打日志，不影响服务）。设置页的保存是**部分更新**：
-  服务端整包覆盖，因此前端 `saveSettings` 对未提供的字段回退到当前生效值，
-  否则只保存键盘页会把启动命令清空。
+  服务端整包覆盖，因此前端 `saveSettings` 对未提供的字段回退到当前生效值。
+- **移动端内置键盘**：窄屏（≤768px）终端视图自动从底部弹起固定六行键盘（`vkeyboard.js`），
+  并顶替底部任务栏；桌面终端不受影响。按键经 `settings.js` 的 `sequenceFor` 转为字节序列，
+  由 `sendInput` 直接写入 PTY。`Ctrl`/`Alt`/`Shift` 是粘滞修饰键（用后即消），
+  `Caps` 是锁定键。内置键盘显示时 xterm 隐藏 textarea 带 `inputmode=none` 挡住系统软键盘；
+  右下角「输入法」改用系统输入法（内置键盘收起、任务栏出现「内置键盘」按钮切回）。
+  离开终端视图 / 切标签 / 会话结束会清掉粘滞修饰键并退出系统输入法。
 - **回收站**：`<起始目录>/.kfm-trash/<unixnano-hex>/`，内含 `meta.json`（`{path, time, names[]}`）
   与原条目；`path` 保存展示路径（相对或绝对），跨会话恢复仍指向同一位置。一次删除 = 一个批次，
   恢复整批 rename 回去。列表 API 永远排除 `.kfm-trash`。
@@ -158,4 +170,4 @@ go test ./...
 cd frontend && npm test     # 纯 node 回归测试（无需浏览器/构建）
 ```
 
-`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、底部栏避让（取最大而非求和，浮层不与任何底栏重叠）、长按多选手势（抖动容忍/slop/吞补发 click/多指与取消）、新建面板扩展名（替换 vs 追加、隐藏文件名不误判、光标位置）、CSS 层叠顺序（自定义类不得盖掉 Tailwind 定位工具类）、路径语义（拼接/上级/展示名/cwd 换算）。
+`internal/fs` 为测试重点：Resolve 的绝对/相对/.. 解析、冲突改名递增、copy/move/delete/restore 往返、名称校验、搜索上限与匹配、编辑器读写（大小/二进制拒收、mtime 冲突、CRLF 往返、原子写不留临时文件）。`internal/server` 测试读写端点与 busy 兜底（409）。`internal/terminal` 测试 OSC 旁路解析（跨帧截断、非 OSC 透传）、busy 判定与会话生命周期、shell 探测。`frontend/test` 覆盖设置页导航、启动命令解析与部分更新、编辑器会话（dirty/保存/409 三选一/换行风格/大文件降级）、终端触摸滚动与侧留白、内置键盘（固定六行布局/修饰键组合/窄屏判定/inputmode 抑制/系统输入法互切）、底部栏避让（取最大而非求和，浮层不与任何底栏重叠）、长按多选手势（抖动容忍/slop/吞补发 click/多指与取消）、新建面板扩展名（替换 vs 追加、隐藏文件名不误判、光标位置）、CSS 层叠顺序（自定义类不得盖掉 Tailwind 定位工具类）、路径语义（拼接/上级/展示名/cwd 换算）。

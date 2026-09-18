@@ -16,6 +16,12 @@ const SORT_FIELDS = [
   { key: 'type', label: '类型', icon: 'category' },
 ]
 
+/* 当前标签：用函数声明（提升）而不是 const 箭头函数 —— 下面带 immediate 的
+ * watch 会在 setup 阶段立即执行，此时 const 还处于 TDZ，会直接抛错。 */
+function tab() {
+  return activeTab()
+}
+
 const menu = ref(false)
 const sortMenu = ref(false)
 const searchEl = ref(null)
@@ -135,7 +141,6 @@ function onDocClick() {
 onMounted(() => document.addEventListener('click', onDocClick))
 onUnmounted(() => document.removeEventListener('click', onDocClick))
 
-const tab = () => activeTab()
 
 /* 隐藏文件开关 */
 function toggleHidden() {

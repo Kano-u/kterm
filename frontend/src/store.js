@@ -32,8 +32,10 @@ export const state = reactive({
   multi: { active: false, sel: new Set() }, // 多选（仅当前 tab，切换/导航时重置）
   search: { active: false, query: '', results: null, truncated: false, busy: false }, // 搜索（不持久化）
   view: 'files', // 底部任务栏视图：'files' | 'term' | 'editor' | 'settings'（不持久化）
-  settingsPage: '', // 设置页内的子页：'' = 设置列表 | 'keyboard' | 'startup'（不持久化）
-  keyboardBar: false, // 软键盘是否弹出（viewport.js 维护，不持久化）
+  settingsPage: '', // 设置页内的子页：'' = 列表 | 'startup'（见 settingsnav.SETTINGS_PAGES，不持久化）
+  keyboardBar: false, // 系统软键盘是否弹出（viewport.js 维护，不持久化）
+  mobileKeyboard: false, // 是否窄屏（≤768px）；内置键盘显示条件之一，viewport.js 维护
+  imeActive: false, // 系统输入法是否接管 xterm 隐藏输入框（不持久化）
   keyboardInset: 0, // 被软键盘遮挡的高度（px）
   terminals: new Map(), // tabId -> {status,busy,degraded,ws}（不持久化，见 terminal.js）
   editors: new Map(), // tabId -> {relPath,name,dirty,...}（不持久化，见 editor.js）

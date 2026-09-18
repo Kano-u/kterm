@@ -1,8 +1,9 @@
 /* 用户设置：唯一真源是服务端 <root>/.kfm-settings.json，前端在内存里缓存一份。
  *
  * 本模块只依赖 api.js / toast.js，不依赖终端模块（避免循环导入）。
- * 「键盘增强」的按键栏数据来自 settings.keys；每个按键名在这里解析为
- * 字节序列（见 parseKey / sequenceOf），按键栏组件只负责渲染与点击。
+ * 窄屏内置键盘的布局固定在 vkeyboard.js，不再读 settings.keys；这里保留
+ * parseKey / sequenceFor 作为「按键 → 字节序列」的唯一转换入口，并继续读写
+ * 旧字段 keys / keyBarEnabled 以兼容旧设置文件（界面不再编辑它们）。
  */
 import { reactive, computed } from 'vue'
 import { apiGet, apiOp } from './api.js'
@@ -18,7 +19,7 @@ export const MAX_STARTUP_LEN = 512
 /* 启动命令模板中的服务地址占位符（与服务端 fs.URLPlaceholder 一致） */
 export const URL_PLACEHOLDER = '{url}'
 
-/* ---------- 默认设置：两行移动端终端常用键 ---------- */
+/* ---------- 兼容字段 keys 的默认值（内置键盘已改用固定布局） ---------- */
 
 export const DEFAULT_KEYS = [
   ['ESC', 'TAB', 'CTRL', 'ALT', '-', 'UP', 'ENTER'],
@@ -30,12 +31,12 @@ export const DEFAULT_KEY_TEXT = JSON.stringify(DEFAULT_KEYS, null, 2)
 /* 当前设置（响应式）：应用启动时从服务端拉取，失败则保持内置默认 */
 export const settings = reactive({
   keys: DEFAULT_KEYS.map((r) => r.slice()),
-  keyBarEnabled: true, // 键盘增强总开关（设置页中的折叠项）
+  keyBarEnabled: true, // 兼容字段：旧设置文件里可能有，界面不再提供开关
   startupCommand: '', // 启动命令模板（空 = 启动时不执行任何东西）
   loaded: false,
 })
 
-/* 解析后的按键栏数据：[[{name,label,mod,spec}, ...], ...] */
+/* 旧按键布局的解析结果（兼容保留：不再有组件渲染它，测试与迁移仍可用） */
 export const keyRows = computed(() => parseRows(settings.keys))
 
 export function applySettings(s) {
@@ -62,8 +63,8 @@ export async function loadSettings() {
 
 /* 保存设置：服务端校验通过后回落盘结果，并即时生效（终端无需重连）。
  *
- * 「部分更新」语义由这里保证：未提供的字段取当前生效值，
- * 因此单独保存键盘页不会把启动命令清空（服务端整包覆盖）。 */
+ * 「部分更新」语义由这里保证：未提供的字段取当前生效值，保存启动命令时
+ * 不会把旧设置里的 keys / keyBarEnabled 清掉（服务端整包覆盖）。 */
 export async function saveSettings(next) {
   const body = {
     keys: next.keys ?? settings.keys,
@@ -145,7 +146,7 @@ export function argvToText(argv) {
 /* ========== 按键名 → 字节序列 ========== */
 
 /* 可粘滞的修饰键 */
-const MOD_NAMES = { CTRL: 'CTRL', CONTROL: 'CTRL', ALT: 'ALT', SHIFT: 'SHIFT' }
+const MOD_NAMES = { CTRL: 'CTRL', CONTROL: 'CTRL', ALT: 'ALT', SHIFT: 'SHIFT', CAPS: 'CAPS', CAPSLOCK: 'CAPS' }
 
 /* 别名 → 规范名（大小写不敏感） */
 const ALIASES = {
@@ -157,6 +158,8 @@ const ALIASES = {
   DEL: 'DEL', DELETE: 'DEL',
   PGUP: 'PGUP', PAGEUP: 'PGUP', PGDN: 'PGDN', PAGEDOWN: 'PGDN',
   BACKSPACE: 'BACKSPACE', BS: 'BACKSPACE', SPACE: 'SPACE',
+  F1: 'F1', F2: 'F2', F3: 'F3', F4: 'F4', F5: 'F5', F6: 'F6',
+  F7: 'F7', F8: 'F8', F9: 'F9', F10: 'F10', F11: 'F11', F12: 'F12',
 }
 
 /* 无修饰键时各功能键的字节序列 */
@@ -169,11 +172,14 @@ const NAMED_SEQ = {
   UP: '\x1b[A', DOWN: '\x1b[B', RIGHT: '\x1b[C', LEFT: '\x1b[D',
   HOME: '\x1b[H', END: '\x1b[F',
   INS: '\x1b[2~', DEL: '\x1b[3~', PGUP: '\x1b[5~', PGDN: '\x1b[6~',
+  F1: '\x1bOP', F2: '\x1bOQ', F3: '\x1bOR', F4: '\x1bOS',
+  F5: '\x1b[15~', F6: '\x1b[17~', F7: '\x1b[18~', F8: '\x1b[19~',
+  F9: '\x1b[20~', F10: '\x1b[21~', F11: '\x1b[23~', F12: '\x1b[24~',
 }
 
 /* 带修饰键时改用 xterm 惯用的数字参数形式（CSI 1;<mod><final> / CSI <n>;<mod>~） */
-const CSI_FINAL = { UP: 'A', DOWN: 'B', RIGHT: 'C', LEFT: 'D', HOME: 'H', END: 'F' }
-const CSI_TILDE = { INS: 2, DEL: 3, PGUP: 5, PGDN: 6 }
+const CSI_FINAL = { UP: 'A', DOWN: 'B', RIGHT: 'C', LEFT: 'D', HOME: 'H', END: 'F', F1: 'P', F2: 'Q', F3: 'R', F4: 'S' }
+const CSI_TILDE = { INS: 2, DEL: 3, PGUP: 5, PGDN: 6, F5: 15, F6: 17, F7: 18, F8: 19, F9: 20, F10: 21, F11: 23, F12: 24 }
 
 /* Shift 后字符的北美键盘映射（仅单字符键需要） */
 const SHIFT_SYMBOLS = {
@@ -217,6 +223,10 @@ function sequenceOf(spec, mods) {
   }
   // char / text
   let out = spec.value
+  if (spec.kind === 'char' && has('CAPS') && /^[a-zA-Z]$/.test(out)) {
+    /* Caps 只翻转字母；符号的 Shift 语义仍由 SHIFT 决定。 */
+    out = out >= 'a' && out <= 'z' ? out.toUpperCase() : out.toLowerCase()
+  }
   if (spec.kind === 'char' && has('SHIFT')) out = shiftChar(out)
   if (has('CTRL')) {
     const c = spec.kind === 'char' ? ctrlChar(out) : null

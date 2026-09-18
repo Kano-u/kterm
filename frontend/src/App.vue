@@ -7,7 +7,6 @@ import FileList from './components/FileList.vue'
 import TerminalView from './components/TerminalView.vue'
 import KeyboardBar from './components/KeyboardBar.vue'
 import SettingsView from './components/SettingsView.vue'
-import KeyboardSettings from './components/KeyboardSettings.vue'
 import StartupSettings from './components/StartupSettings.vue'
 import SelectBar from './components/SelectBar.vue'
 import PasteBar from './components/PasteBar.vue'
@@ -26,6 +25,7 @@ import { anyDirty } from './editor.js'
 import { loadSettings } from './settings.js'
 import { initViewportWatch } from './viewport.js'
 import { keyBarVisible } from './keybar.js'
+import { resetImeState } from './ime.js'
 import { installBottomBarWatch } from './bottombar.js'
 /* 编辑器内核（CodeMirror）按需懒加载：只有真的打开过编辑器才会下载该 chunk。
  * 未打开时状态里没有任何编辑会话，v-if 保证组件根本不挂载。 */
@@ -70,6 +70,7 @@ function onBeforeUnload(ev) {
 let stopViewportWatch = () => {}
 let bottomBarWatch = { sync() {}, stop() {} }
 let stopBottomBarWatch = () => {}
+let stopImeWatch = () => {}
 
 onMounted(async () => {
   // 设置与软键盘检测与文件列表无关，先并行发起（失败不影响主功能）
@@ -113,13 +114,25 @@ onMounted(async () => {
   window.addEventListener('popstate', onPop)
   window.addEventListener('beforeunload', onBeforeUnload)
 
+  /* 系统输入法接管期间内置键盘是卸载的，键盘组件自己的 watch 不会跑，
+   * 因此在这里统一收尾：离开终端视图 / 切标签 / 会话结束都退回内置键盘。
+   * 否则会留下 inputmode 已放开的 textarea，回到终端时系统键盘会自己弹起来。 */
+  stopImeWatch = watch(
+    () => [state.view, state.activeTabId, state.terminals.get(state.activeTabId)?.status],
+    ([view, tabId, status], [prevView, prevTabId]) => {
+      if (!state.imeActive) return
+      const tabChanged = tabId !== prevTabId
+      if (view !== 'term' || tabChanged || status === 'ended') resetImeState()
+    },
+  )
+
   /* 底部浮层（Toast）避让底部栏：把所有可见底栏（任务栏 / 按键栏 / 多选栏 /
    * 粘贴栏）测出的最大高度写入 --kfm-bottom-bar。
    * 底栏是 v-if 挂载的（多选栏、粘贴栏唯条件出现），ResizeObserver 只对已观测
    * 元素生效，因此以下变化都要补测一次。 */
   bottomBarWatch = installBottomBarWatch()
   stopBottomBarWatch = watch(
-    () => [keyBarVisible.value, state.multi.active, !!state.clipboard, state.keyboardInset],
+    () => [keyBarVisible.value, state.multi.active, !!state.clipboard, state.keyboardInset, state.imeActive],
     bottomBarWatch.sync,
     { flush: 'post' },
   )
@@ -127,6 +140,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopViewportWatch()
+  stopImeWatch()
   bottomBarWatch.stop()
   stopBottomBarWatch()
   window.removeEventListener('popstate', onPop)
@@ -150,7 +164,6 @@ onUnmounted(() => {
 
     <!-- 设置：列表页 + 各设置项的独立子页 -->
     <SettingsView v-if="state.view === 'settings' && !state.settingsPage" />
-    <KeyboardSettings v-else-if="state.view === 'settings' && state.settingsPage === 'keyboard'" />
     <StartupSettings v-else-if="state.view === 'settings' && state.settingsPage === 'startup'" />
 
     <!-- 底部固定栏（多选与粘贴互斥显示，仅文件视图） -->
@@ -159,7 +172,7 @@ onUnmounted(() => {
       <PasteBar />
     </template>
 
-    <!-- 软键盘弹出时，按键栏顶替底部任务栏。两条栏都标 data-bottom-bar，
+    <!-- 窄屏终端内置键盘自动顶替底部任务栏。两条栏都标 data-bottom-bar，
          由 bottombar.js 统一测量（Toast 据此避让）。 -->
     <KeyboardBar v-if="keyBarVisible" />
     <Taskbar />
